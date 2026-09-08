@@ -125,7 +125,11 @@ def build_network(trips: list[Trip], depots: list[str], layover: float = 5.0,
                     arcs.append(Arc("deadhead", u, v, DEADHEAD_COST * dh))
 
     by_stop: dict[str, list[float]] = {}                     # 等待弧
-    for (s, tm) in nodes:
+    # **必须 sorted。** `nodes` 是集合，迭代顺序按字符串哈希走，逐进程都不同
+    # （PYTHONHASHSEED）。不排序的话等待弧的追加顺序变，模型的列序就变，
+    # 单纯形走的路径跟着变——在有多重最优解的实例上会落到不同顶点：
+    # 目标值一样，"分数变量个数"却从 0 变成 18。CI 首跑就是被这个弄红的。
+    for (s, tm) in sorted(nodes):
         by_stop.setdefault(s, []).append(tm)
     for s, times in by_stop.items():
         for t1, t2 in zip(sorted(times), sorted(times)[1:]):

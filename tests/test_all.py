@@ -244,17 +244,32 @@ class MultiDepot(unittest.TestCase):
             self.assertAlmostEqual(mip.obj, ref, places=6, msg="seed=%d" % seed)
             self.assertGreater(mip.nodes, 1, "seed=%d 出了分数解就该分支" % seed)
 
-    def test_random_instances_are_reproducible_across_processes(self):
-        """站名先排序再进循环——集合迭代顺序按哈希来，跨进程会变。
+    def test_model_construction_is_reproducible_across_processes(self):
+        """集合的迭代顺序按哈希走，逐进程不同——建模时碰一次集合就会漏进不确定性。
 
-        第一版就在这里踩过：同一个种子两次跑出不同实例，分数变量数 16 变 22。
+        这个仓在这里栽过**两次**：
+
+        1. `random_instance` 用集合迭代顺序建空驶表，同一个种子跨进程跑出不同实例，
+           分数变量数从 16 变成 22。
+        2. `build_network` 里等待弧是按 `for (s, tm) in nodes` 追加的，`nodes` 是集合。
+           顺序一变，模型的**列序**就变，单纯形走的路径跟着变——在有多重最优解的实例上
+           落到不同顶点：目标值一模一样（4077.000000），"分数变量个数"却从 0 变成 18。
+           **CI 首跑就是被第 2 条弄红的**，本机怎么跑都是绿的，因为本机也只是碰巧。
+
+        所以这条测试比对的不是数值，是**模型本身的构造**：弧的种类与首尾、
+        实例的全部字段，换三个 PYTHONHASHSEED 必须逐位相同。
         """
         code = chr(10).join([
             "import sys; sys.path.insert(0, %r)" % str(ROOT),
-            "from problems import vsp",
+            "from problems import transit, vsp",
             "i = vsp.random_instance(17)",
             "print(i['n'], ','.join(i['depots']), i['vehicle_cost'],",
             "      len(i['dh']), sum(i['dh'].values()))",
+            "tr = transit.instance(8, seed=1)",
+            "nodes, arcs = vsp.build_network(tr, ['dA', 'dB'])",
+            "print(len(nodes), len(arcs))",
+            "for a in arcs:",
+            "    print(a.kind, a.tail, a.head, round(a.cost, 6), a.trip_id, a.depot)",
         ])
         outs = set()
         for hs in ("0", "1", "12345"):
@@ -262,8 +277,9 @@ class MultiDepot(unittest.TestCase):
             r = subprocess.run([sys.executable, "-c", code], capture_output=True,
                                text=True, encoding="utf-8", errors="replace", env=env)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-            outs.add(r.stdout.strip())
-        self.assertEqual(len(outs), 1, "换 PYTHONHASHSEED 就变了：%s" % outs)
+            outs.add(r.stdout)
+        self.assertEqual(len(outs), 1,
+                         "换 PYTHONHASHSEED 就变了——建模路径上还有集合在被迭代")
 
     def test_a_fractional_relaxation_does_not_imply_a_loose_bound(self):
         """有一个反例的松弛是分数的，界间隙却是 0.00%。
