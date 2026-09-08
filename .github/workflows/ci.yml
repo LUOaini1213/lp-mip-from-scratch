@@ -1,0 +1,44 @@
+name: ci
+
+# 全离线：实例都是确定性生成的，没有数据下载、没有模型权重。
+# 每个答案都与 HiGHS（经 SciPy）对照，CI 会把这件事重跑一遍。
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Tests
+        run: python -m unittest discover -s tests -v
+      - name: Committed benchmark still holds
+        run: python bench/bench_all.py --check
+      - name: The solver core needs no SciPy
+        # lpmip/ 只依赖 NumPy；SciPy 只用于交叉验证。卸掉它验一次，
+        # 免得"自己实现"这句话悄悄靠在参照求解器上。
+        run: |
+          pip uninstall -y scipy
+          python -c "
+          import sys; sys.path.insert(0,'.')
+          from lpmip.model import Model
+          from lpmip import branch_bound as bb
+          m = Model(sense='max')
+          x = [m.add_var('x%d'%i, 0, 1, integer=True) for i in range(3)]
+          m.add_constraint(2*x[0] + 3*x[1] + x[2] <= 5)
+          m.set_objective(5*x[0] + 4*x[1] + 3*x[2])
+          r = bb.solve(m)
+          assert r.status == 'optimal' and abs(r.obj - 9.0) < 1e-9, r
+          print('ok: 无 SciPy 也能求解', r.obj)
+          "

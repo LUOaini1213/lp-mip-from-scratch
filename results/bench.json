@@ -1,0 +1,346 @@
+{
+ "correctness": {
+  "lp": [
+   {
+    "case": "blending",
+    "mine_status": "optimal",
+    "highs_status": "optimal",
+    "mine_obj": 9.577777778,
+    "highs_obj": 9.577777778,
+    "agree": true
+   },
+   {
+    "case": "klee_minty_4",
+    "mine_status": "optimal",
+    "highs_status": "optimal",
+    "mine_obj": 1000000.0,
+    "highs_obj": 1000000.0,
+    "agree": true
+   },
+   {
+    "case": "klee_minty_6",
+    "mine_status": "optimal",
+    "highs_status": "optimal",
+    "mine_obj": 10000000000.0,
+    "highs_obj": 10000000000.0,
+    "agree": true
+   }
+  ],
+  "mip": [
+   {
+    "case": "knapsack_8",
+    "mine_status": "optimal",
+    "highs_status": "optimal",
+    "mine_obj": 94.0,
+    "highs_obj": 94.0,
+    "nodes": 17,
+    "agree": true
+   },
+   {
+    "case": "knapsack_10",
+    "mine_status": "optimal",
+    "highs_status": "optimal",
+    "mine_obj": 136.0,
+    "highs_obj": 136.0,
+    "nodes": 27,
+    "agree": true
+   },
+   {
+    "case": "knapsack_12",
+    "mine_status": "optimal",
+    "highs_status": "optimal",
+    "mine_obj": 159.0,
+    "highs_obj": 159.0,
+    "nodes": 29,
+    "agree": true
+   },
+   {
+    "case": "knapsack_14",
+    "mine_status": "optimal",
+    "highs_status": "optimal",
+    "mine_obj": 188.0,
+    "highs_obj": 188.0,
+    "nodes": 35,
+    "agree": true
+   },
+   {
+    "case": "transit_assign_6",
+    "mine_status": "optimal",
+    "highs_status": "optimal",
+    "mine_obj": 3.0,
+    "highs_obj": 3.0,
+    "nodes": 1,
+    "agree": true
+   },
+   {
+    "case": "transit_assign_8",
+    "mine_status": "optimal",
+    "highs_status": "optimal",
+    "mine_obj": 4.0,
+    "highs_obj": 4.0,
+    "nodes": 1,
+    "agree": true
+   },
+   {
+    "case": "transit_assign_10",
+    "mine_status": "optimal",
+    "highs_status": "optimal",
+    "mine_obj": 6.0,
+    "highs_obj": 6.0,
+    "nodes": 1,
+    "agree": true
+   },
+   {
+    "case": "transit_assign_12",
+    "mine_status": "optimal",
+    "highs_status": "optimal",
+    "mine_obj": 8.0,
+    "highs_obj": 8.0,
+    "nodes": 1,
+    "agree": true
+   }
+  ],
+  "all_agree": true,
+  "n_cases": 11
+ },
+ "pivot": {
+  "beale": {
+   "dantzig": {
+    "status": "cycling",
+    "iterations": 203,
+    "obj": null
+   },
+   "bland": {
+    "status": "optimal",
+    "iterations": 9,
+    "obj": -0.05
+   },
+   "highs_obj": -0.05
+  },
+  "klee_minty": [
+   {
+    "n": 3,
+    "iterations": 7,
+    "two_pow_n_minus_1": 7,
+    "matches_worst_case": true,
+    "agrees_with_highs": true
+   },
+   {
+    "n": 4,
+    "iterations": 15,
+    "two_pow_n_minus_1": 15,
+    "matches_worst_case": true,
+    "agrees_with_highs": true
+   },
+   {
+    "n": 5,
+    "iterations": 31,
+    "two_pow_n_minus_1": 31,
+    "matches_worst_case": true,
+    "agrees_with_highs": true
+   },
+   {
+    "n": 6,
+    "iterations": 63,
+    "two_pow_n_minus_1": 63,
+    "matches_worst_case": true,
+    "agrees_with_highs": true
+   },
+   {
+    "n": 7,
+    "iterations": 127,
+    "two_pow_n_minus_1": 127,
+    "matches_worst_case": true,
+    "agrees_with_highs": true
+   }
+  ],
+  "note": "Dantzig 规则在 Beale 例子上**真的循环**（撞迭代上限仍未终止），Bland 规则 9 步收敛；Klee–Minty 上 Dantzig 的迭代数**精确等于 2^n − 1**，单纯形法最坏情况指数复杂度不是纸面警告。"
+ },
+ "formulations": {
+  "transit": [
+   {
+    "trips": 6,
+    "formulation": "assignment",
+    "n_vars": 6,
+    "n_cons": 6,
+    "lp_bound": 3.0,
+    "mip_obj": 3.0,
+    "nodes": 1,
+    "fleet": 3,
+    "lp_already_integral": true
+   },
+   {
+    "trips": 8,
+    "formulation": "assignment",
+    "n_vars": 14,
+    "n_cons": 10,
+    "lp_bound": 4.0,
+    "mip_obj": 4.0,
+    "nodes": 1,
+    "fleet": 4,
+    "lp_already_integral": true
+   },
+   {
+    "trips": 10,
+    "formulation": "assignment",
+    "n_vars": 28,
+    "n_cons": 14,
+    "lp_bound": 6.0,
+    "mip_obj": 6.0,
+    "nodes": 1,
+    "fleet": 4,
+    "lp_already_integral": true
+   },
+   {
+    "trips": 12,
+    "formulation": "assignment",
+    "n_vars": 45,
+    "n_cons": 18,
+    "lp_bound": 8.0,
+    "mip_obj": 8.0,
+    "nodes": 1,
+    "fleet": 4,
+    "lp_already_integral": true
+   },
+   {
+    "trips": 4,
+    "formulation": "bigM",
+    "n_vars": 15,
+    "n_cons": 32,
+    "lp_bound": 1.0,
+    "mip_obj": 3.0,
+    "nodes": 29,
+    "fleet": 3,
+    "lp_already_integral": false
+   },
+   {
+    "trips": 5,
+    "formulation": "bigM",
+    "n_vars": 18,
+    "n_cons": 42,
+    "lp_bound": 1.0,
+    "mip_obj": 3.0,
+    "nodes": 31,
+    "fleet": 3,
+    "lp_already_integral": false
+   },
+   {
+    "trips": 6,
+    "formulation": "bigM",
+    "n_vars": 21,
+    "n_cons": 52,
+    "lp_bound": 1.0,
+    "mip_obj": 3.0,
+    "nodes": 21,
+    "fleet": 3,
+    "lp_already_integral": false
+   }
+  ],
+  "big_m_sweep": [
+   {
+    "big_m": "tight(cap_i)",
+    "lp_bound": 970.510204,
+    "mip_obj": 953.0,
+    "nodes": 5,
+    "agrees_with_highs": true
+   },
+   {
+    "big_m": 100,
+    "lp_bound": 1040.56,
+    "mip_obj": 953.0,
+    "nodes": 19,
+    "agrees_with_highs": true
+   },
+   {
+    "big_m": 1000,
+    "lp_bound": 1082.356,
+    "mip_obj": 953.0,
+    "nodes": 19,
+    "agrees_with_highs": true
+   },
+   {
+    "big_m": 10000,
+    "lp_bound": 1086.5356,
+    "mip_obj": 953.0,
+    "nodes": 19,
+    "agrees_with_highs": true
+   }
+  ],
+  "note": "同一个问题，指派型写法的线性松弛**天然是整数**（约束矩阵全幺模），分支定界一个节点都不用分；big-M 写法松弛界塌到 1、要探几十个节点。big-M 取值本身也一样：M 越大松弛越松、节点越多，最优值却一模一样。"
+ },
+ "cost": {
+  "rows": [
+   {
+    "case": "klee_minty_3",
+    "mine_seconds": 0.000162,
+    "highs_seconds": 0.000953,
+    "speed_ratio": 0.2
+   },
+   {
+    "case": "klee_minty_4",
+    "mine_seconds": 0.000274,
+    "highs_seconds": 0.000893,
+    "speed_ratio": 0.3
+   },
+   {
+    "case": "klee_minty_5",
+    "mine_seconds": 0.00053,
+    "highs_seconds": 0.000865,
+    "speed_ratio": 0.6
+   },
+   {
+    "case": "klee_minty_6",
+    "mine_seconds": 0.001123,
+    "highs_seconds": 0.000817,
+    "speed_ratio": 1.4
+   },
+   {
+    "case": "knapsack_10",
+    "mine_seconds": 0.008043,
+    "highs_seconds": 0.001814,
+    "speed_ratio": 4.4
+   },
+   {
+    "case": "knapsack_12",
+    "mine_seconds": 0.011391,
+    "highs_seconds": 0.001346,
+    "speed_ratio": 8.5
+   },
+   {
+    "case": "knapsack_14",
+    "mine_seconds": 0.016414,
+    "highs_seconds": 0.00207,
+    "speed_ratio": 7.9
+   },
+   {
+    "case": "dense_lp_20x30",
+    "mine_seconds": 0.010209,
+    "highs_seconds": 0.001834,
+    "speed_ratio": 5.6,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "dense_lp_40x60",
+    "mine_seconds": 0.038598,
+    "highs_seconds": 0.002854,
+    "speed_ratio": 13.5,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "dense_lp_60x90",
+    "mine_seconds": 0.112226,
+    "highs_seconds": 0.004698,
+    "speed_ratio": 23.9,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "dense_lp_80x120",
+    "mine_seconds": 0.221414,
+    "highs_seconds": 0.006904,
+    "speed_ratio": 32.1,
+    "agrees_with_highs": true
+   }
+  ],
+  "note": "**「比 HiGHS 慢」这句话在小实例上不成立**——背包和 Klee–Minty 这种规模上，HiGHS 的固定开销盖过求解本身，我的实现有时反而更快。要看真实差距得把规模拉起来：随机稠密 LP 上差距随规模迅速拉开。写这个仓是为了把方法搞明白，**不是造一个该上生产的求解器**——生产上该用 HiGHS/Gurobi。"
+ }
+}

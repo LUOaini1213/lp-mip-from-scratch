@@ -1,0 +1,4 @@
+# 版本钉死：HiGHS 是本仓唯一的独立参照，换版本可能改变数值末位与状态码，
+# 而 bench/bench_all.py --check 要在 CI 上复现。
+numpy==1.24.3
+scipy==1.11.1
