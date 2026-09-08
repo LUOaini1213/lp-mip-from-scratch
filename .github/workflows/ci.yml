@@ -29,6 +29,9 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Committed benchmark still holds
         run: python bench/bench_all.py --check
+      - name: Committed vehicle-scheduling results still hold
+        # 不跑 --hunt（6000 个实例约 8 分钟）；只验冻结的 6 个种子仍然出分数松弛。
+        run: python bench/bench_vsp.py --check
       - name: The solver core needs no SciPy
         # lpmip/ 只依赖 NumPy；SciPy 只用于交叉验证。卸掉它验一次，
         # 免得"自己实现"这句话悄悄靠在参照求解器上。

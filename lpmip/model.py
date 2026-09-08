@@ -269,3 +269,22 @@ class Model:
 
     def integer_vars(self) -> list[int]:
         return [v.idx for v in self.vars if v.integer]
+
+    def is_feasible(self, x, tol: float = 1e-6) -> bool:
+        """给定一个点，判断它是否满足全部约束与变量界。
+
+        写它是为了**直接按定义验割的有效性**：枚举小背包的全部 0/1 点，
+        原模型可行的点，加割之后必须仍然可行。第一版那个假割正是在这里会被抓住。
+        """
+        for v in self.vars:
+            if x[v.idx] < v.lb - tol or x[v.idx] > v.ub + tol:
+                return False
+        for con in self.cons:
+            val = sum(k * x[i] for i, k in con.expr.terms.items()) + con.expr.const
+            if con.sense == "<=" and val > tol:
+                return False
+            if con.sense == ">=" and val < -tol:
+                return False
+            if con.sense == "==" and abs(val) > tol:
+                return False
+        return True

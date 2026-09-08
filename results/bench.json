@@ -268,76 +268,136 @@
   ],
   "note": "同一个问题，指派型写法的线性松弛**天然是整数**（约束矩阵全幺模），分支定界一个节点都不用分；big-M 写法松弛界塌到 1、要探几十个节点。big-M 取值本身也一样：M 越大松弛越松、节点越多，最优值却一模一样。"
  },
+ "cuts": {
+  "rows": [
+   {
+    "case": "knapsack_8",
+    "lp_bound_before": 98.888888889,
+    "lp_bound_after": 94.0,
+    "cuts_added": 12,
+    "rounds": 3,
+    "nodes_without_cuts": 17,
+    "nodes_with_cuts": 1,
+    "mip_obj": 94.0,
+    "same_optimum_with_cuts": true,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "knapsack_10",
+    "lp_bound_before": 142.0,
+    "lp_bound_after": 136.0,
+    "cuts_added": 7,
+    "rounds": 2,
+    "nodes_without_cuts": 27,
+    "nodes_with_cuts": 1,
+    "mip_obj": 136.0,
+    "same_optimum_with_cuts": true,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "knapsack_12",
+    "lp_bound_before": 163.444444444,
+    "lp_bound_after": 160.333333333,
+    "cuts_added": 10,
+    "rounds": 3,
+    "nodes_without_cuts": 29,
+    "nodes_with_cuts": 31,
+    "mip_obj": 159.0,
+    "same_optimum_with_cuts": true,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "knapsack_14",
+    "lp_bound_before": 194.888888889,
+    "lp_bound_after": 188.0,
+    "cuts_added": 12,
+    "rounds": 3,
+    "nodes_without_cuts": 35,
+    "nodes_with_cuts": 1,
+    "mip_obj": 188.0,
+    "same_optimum_with_cuts": true,
+    "agrees_with_highs": true
+   }
+  ],
+  "n_cases": 4,
+  "all_agree_with_highs": true,
+  "all_same_optimum": true,
+  "n_helped": 3,
+  "n_hurt": 1,
+  "mixed_integer_is_refused": true,
+  "mixed_integer_reason": "存在连续变量 ['x0', 'x1', 'x2'] —— 分数割不适用于混合整数，那需要 Gomory 混合整数割（本模块未实现）",
+  "note": "3/4 个实例的节点数被割压到 1，**但 n=12 反而从 29 涨到 31**。割抬高了界却让每个节点更贵，净效果可以是负的——这一行留在表里，不挑数据。"
+ },
  "cost": {
   "rows": [
    {
     "case": "klee_minty_3",
-    "mine_seconds": 0.000162,
-    "highs_seconds": 0.000953,
+    "mine_seconds": 0.000174,
+    "highs_seconds": 0.000761,
     "speed_ratio": 0.2
    },
    {
     "case": "klee_minty_4",
-    "mine_seconds": 0.000274,
-    "highs_seconds": 0.000893,
-    "speed_ratio": 0.3
+    "mine_seconds": 0.000278,
+    "highs_seconds": 0.000692,
+    "speed_ratio": 0.4
    },
    {
     "case": "klee_minty_5",
-    "mine_seconds": 0.00053,
-    "highs_seconds": 0.000865,
-    "speed_ratio": 0.6
+    "mine_seconds": 0.000521,
+    "highs_seconds": 0.000672,
+    "speed_ratio": 0.8
    },
    {
     "case": "klee_minty_6",
-    "mine_seconds": 0.001123,
-    "highs_seconds": 0.000817,
-    "speed_ratio": 1.4
+    "mine_seconds": 0.001116,
+    "highs_seconds": 0.00075,
+    "speed_ratio": 1.5
    },
    {
     "case": "knapsack_10",
-    "mine_seconds": 0.008043,
-    "highs_seconds": 0.001814,
-    "speed_ratio": 4.4
+    "mine_seconds": 0.007483,
+    "highs_seconds": 0.001382,
+    "speed_ratio": 5.4
    },
    {
     "case": "knapsack_12",
-    "mine_seconds": 0.011391,
-    "highs_seconds": 0.001346,
-    "speed_ratio": 8.5
+    "mine_seconds": 0.011129,
+    "highs_seconds": 0.001209,
+    "speed_ratio": 9.2
    },
    {
     "case": "knapsack_14",
-    "mine_seconds": 0.016414,
-    "highs_seconds": 0.00207,
-    "speed_ratio": 7.9
+    "mine_seconds": 0.015709,
+    "highs_seconds": 0.002152,
+    "speed_ratio": 7.3
    },
    {
     "case": "dense_lp_20x30",
-    "mine_seconds": 0.010209,
-    "highs_seconds": 0.001834,
-    "speed_ratio": 5.6,
+    "mine_seconds": 0.009419,
+    "highs_seconds": 0.001354,
+    "speed_ratio": 7.0,
     "agrees_with_highs": true
    },
    {
     "case": "dense_lp_40x60",
-    "mine_seconds": 0.038598,
-    "highs_seconds": 0.002854,
-    "speed_ratio": 13.5,
+    "mine_seconds": 0.09237,
+    "highs_seconds": 0.002246,
+    "speed_ratio": 41.1,
     "agrees_with_highs": true
    },
    {
     "case": "dense_lp_60x90",
-    "mine_seconds": 0.112226,
-    "highs_seconds": 0.004698,
-    "speed_ratio": 23.9,
+    "mine_seconds": 0.105065,
+    "highs_seconds": 0.003957,
+    "speed_ratio": 26.6,
     "agrees_with_highs": true
    },
    {
     "case": "dense_lp_80x120",
-    "mine_seconds": 0.221414,
-    "highs_seconds": 0.006904,
-    "speed_ratio": 32.1,
+    "mine_seconds": 0.214742,
+    "highs_seconds": 0.006406,
+    "speed_ratio": 33.5,
     "agrees_with_highs": true
    }
   ],

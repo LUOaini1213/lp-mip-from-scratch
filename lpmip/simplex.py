@@ -29,6 +29,9 @@ class LPResult:
     pivot_rule: str
     restarted_with_bland: bool = False
     message: str = ""
+    # 最终单纯形表与基（仅当 want_tableau=True 时填）。割平面要从这里取行。
+    tableau: np.ndarray | None = None
+    basis: list | None = None
 
 
 def _choose_entering(reduced: np.ndarray, rule: str) -> int:
@@ -88,7 +91,7 @@ def _run(T: np.ndarray, basis: list, rule: str, max_iter: int) -> tuple[str, int
 
 def solve_standard(A: np.ndarray, b: np.ndarray, c: np.ndarray,
                    rule: str = "dantzig", max_iter: int = 10000,
-                   auto_bland: bool = True) -> LPResult:
+                   auto_bland: bool = True, want_tableau: bool = False) -> LPResult:
     """解 min c'x, Ax=b, x>=0。两阶段法。"""
     A = np.asarray(A, dtype=float)
     b = np.asarray(b, dtype=float)
@@ -145,7 +148,10 @@ def solve_standard(A: np.ndarray, b: np.ndarray, c: np.ndarray,
     for i in range(m):
         if basis[i] < n:
             x[basis[i]] = T2[i, -1]
-    return LPResult("optimal", x, float(c @ x), it1 + it2, rule, restarted)
+    res = LPResult("optimal", x, float(c @ x), it1 + it2, rule, restarted)
+    if want_tableau:
+        res.tableau, res.basis = T2, list(basis)
+    return res
 
 
 def _restart_bland(A, b, c, max_iter) -> LPResult:
@@ -155,10 +161,12 @@ def _restart_bland(A, b, c, max_iter) -> LPResult:
     return r
 
 
-def solve_model(model, rule: str = "dantzig", max_iter: int = 10000) -> LPResult:
+def solve_model(model, rule: str = "dantzig", max_iter: int = 10000,
+                want_tableau: bool = False) -> LPResult:
     """解一个 `lpmip.model.Model` 的**线性松弛**（忽略整数约束）。"""
     sf = model.to_standard_form()
-    r = solve_standard(sf.A, sf.b, sf.c, rule=rule, max_iter=max_iter)
+    r = solve_standard(sf.A, sf.b, sf.c, rule=rule, max_iter=max_iter,
+                       want_tableau=want_tableau)
     if r.x is not None:
         xr = sf.recover(r.x)
         r.x = xr

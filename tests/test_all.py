@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import unittest
@@ -18,7 +19,8 @@ from bench.bench_all import highs_lp, highs_mip                  # noqa: E402
 from lpmip import branch_bound as bb                             # noqa: E402
 from lpmip.model import INF, Model                               # noqa: E402
 from lpmip.simplex import solve_model, solve_standard            # noqa: E402
-from problems import classic, transit                            # noqa: E402
+from lpmip.cuts import tighten, validate_pure_integer           # noqa: E402
+from problems import classic, transit, vsp                      # noqa: E402
 
 
 class Reduction(unittest.TestCase):
@@ -142,15 +144,143 @@ class BranchAndBound(unittest.TestCase):
             self.assertAlmostEqual(r.x[i], round(r.x[i]), places=6)
         self.assertLessEqual(sum(w[i] * r.x[i] for i in range(len(w))), cap + 1e-6)
 
-    def test_cuts_flag_refuses_instead_of_lying(self):
-        """割平面没实现。传 True 必须报错，**不许静默当成没传**。
+class Cuts(unittest.TestCase):
+    """Gomory 分数割。**第一版这里放过一个会切掉可行整数解的假货**，所以这一组
+    不满足于"跑出来对"，要按定义把有效性验一遍。"""
 
-        第一版这里有一个"割"，它会切掉可行整数解——那会让求解器返回错误的最优值。
-        删掉之后留一个显式的 NotImplementedError，比留一个静默降级安全。
+    def test_cuts_never_change_the_optimum(self):
+        for n in (8, 10, 12, 14):
+            m, *_ = classic.knapsack(seed=3, n=n)
+            plain, cut = bb.solve(m), bb.solve(m, cuts=True)
+            st, ref = highs_mip(m)
+            self.assertEqual(st, "optimal")
+            self.assertAlmostEqual(plain.obj, ref, places=6, msg="n=%d" % n)
+            self.assertAlmostEqual(cut.obj, ref, places=6,
+                                   msg="加割不许改最优值 n=%d" % n)
+
+    def test_no_feasible_integer_point_is_ever_cut_off(self):
+        """按定义验有效性：枚举全部 2^n 个 0/1 点，原模型可行的必须仍然可行。
+
+        这正是第一版那个假割（`x <= floor(v)`）会当场失败的地方。
         """
-        m, *_ = classic.knapsack(seed=3, n=8)
-        with self.assertRaises(NotImplementedError):
-            bb.solve(m, cuts=True)
+        for n in (8, 10, 12):
+            m, *_ = classic.knapsack(seed=3, n=n)
+            tightened, stats = tighten(m)
+            self.assertGreater(stats["cuts"], 0, "n=%d 一条割都没加，这测试就没意义" % n)
+            kept = 0
+            for mask in range(1 << n):
+                x = [float((mask >> i) & 1) for i in range(n)]
+                if not m.is_feasible(x):
+                    continue
+                kept += 1
+                self.assertTrue(tightened.is_feasible(x),
+                                "n=%d 割切掉了可行整数点 %s" % (n, x))
+            self.assertGreater(kept, 0)
+
+    def test_cuts_only_tighten_the_bound_never_past_the_optimum(self):
+        for n in (8, 10, 12, 14):
+            m, *_ = classic.knapsack(seed=3, n=n)
+            _, st = tighten(m)
+            _, ref = highs_mip(m)
+            self.assertLess(st["bound_after"], st["bound_before"] - 1e-9,
+                            "n=%d 保留下来的割必须抬高界" % n)
+            self.assertGreaterEqual(st["bound_after"], ref - 1e-6,
+                                    "n=%d 界被压到最优值以下 = 切掉了整数解" % n)
+
+    def test_mixed_integer_is_refused_not_silently_skipped(self):
+        """分数割要求行里所有变量（含松弛变量）取整数。混合整数不满足，必须拒绝。"""
+        cap, profit, fixed, total = classic.production_mip(seed=5, n=7)
+        mixed = classic.build_production(cap, profit, fixed, total, big_m=None)
+        ok, why = validate_pure_integer(mixed)
+        self.assertFalse(ok)
+        self.assertIn("连续变量", why)
+        with self.assertRaises(ValueError):
+            bb.solve(mixed, cuts=True)
+
+    def test_cuts_can_make_things_worse_and_that_stays_in_the_bench(self):
+        """n=12 上割抬高了界，节点数却从 29 涨到 31。反例留着，不许被悄悄挑掉。"""
+        d = json.loads((ROOT / "results" / "bench.json").read_text(encoding="utf-8"))["cuts"]
+        self.assertTrue(d["all_same_optimum"])
+        self.assertTrue(d["mixed_integer_is_refused"])
+        self.assertGreaterEqual(d["n_hurt"], 1,
+                                "README 里写着有反例；如果它消失了，README 也要改")
+
+
+class MultiDepot(unittest.TestCase):
+    """MDVSP。**这一组存在的理由是我在这里写错过一个结论。**"""
+
+    def test_single_depot_relaxation_is_integral(self):
+        """单场站是纯网络流，矩阵全幺模，松弛天然整数。"""
+        for n in (6, 8):
+            trips = transit.instance(n, seed=1)
+            r = solve_model(vsp.model_single_depot(trips))
+            self.assertEqual(r.status, "optimal")
+            for v in r.x:
+                self.assertAlmostEqual(v, round(v), places=6, msg="n=%d" % n)
+
+    def test_adding_a_depot_alone_does_not_make_it_fractional(self):
+        """**被推翻的那条结论**：只加场站不产生分数松弛。
+
+        这是负面结果，写成断言是为了防止有人（包括我）以后又把
+        「多一个场站难度就换一个量级」写回 README。
+        """
+        d = json.loads((ROOT / "results" / "vsp.json").read_text(encoding="utf-8"))["ladder"]
+        self.assertGreaterEqual(d["n_rows"], 10)
+        self.assertEqual(d["n_rows_with_fractional_lp"], 0,
+                         "阶梯里出现了分数松弛——结论要重写，不是改断言")
+        self.assertTrue(d["all_agree_with_highs"])
+
+    def test_depot_eligibility_is_what_actually_makes_it_fractional(self):
+        """加上场站准入限制之后才出分数松弛，6 个冻结种子逐个复现。"""
+        for seed in vsp.FRACTIONAL_SEEDS:
+            m = vsp.model_from_random(seed)
+            lp = solve_model(m)
+            self.assertEqual(lp.status, "optimal", "seed=%d" % seed)
+            n_frac = sum(1 for v in lp.x if abs(v - round(v)) > 1e-6)
+            self.assertGreater(n_frac, 0, "seed=%d 不再出分数解了" % seed)
+            mip = bb.solve(m, max_nodes=20000)
+            st, ref = highs_mip(m)
+            self.assertEqual(st, "optimal")
+            self.assertAlmostEqual(mip.obj, ref, places=6, msg="seed=%d" % seed)
+            self.assertGreater(mip.nodes, 1, "seed=%d 出了分数解就该分支" % seed)
+
+    def test_random_instances_are_reproducible_across_processes(self):
+        """站名先排序再进循环——集合迭代顺序按哈希来，跨进程会变。
+
+        第一版就在这里踩过：同一个种子两次跑出不同实例，分数变量数 16 变 22。
+        """
+        code = chr(10).join([
+            "import sys; sys.path.insert(0, %r)" % str(ROOT),
+            "from problems import vsp",
+            "i = vsp.random_instance(17)",
+            "print(i['n'], ','.join(i['depots']), i['vehicle_cost'],",
+            "      len(i['dh']), sum(i['dh'].values()))",
+        ])
+        outs = set()
+        for hs in ("0", "1", "12345"):
+            env = dict(os.environ, PYTHONHASHSEED=hs, PYTHONIOENCODING="utf-8")
+            r = subprocess.run([sys.executable, "-c", code], capture_output=True,
+                               text=True, encoding="utf-8", errors="replace", env=env)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            outs.add(r.stdout.strip())
+        self.assertEqual(len(outs), 1, "换 PYTHONHASHSEED 就变了：%s" % outs)
+
+    def test_a_fractional_relaxation_does_not_imply_a_loose_bound(self):
+        """有一个反例的松弛是分数的，界间隙却是 0.00%。
+
+        分数解与整数解目标值相同——松弛解"不整数"和界"不紧"是两回事，
+        README 里把这条单独写出来了。
+        """
+        d = json.loads((ROOT / "results" / "vsp.json").read_text(
+            encoding="utf-8"))["counterexamples"]
+        self.assertTrue(d["all_fractional"])
+        self.assertTrue(d["all_agree_with_highs"])
+        self.assertGreaterEqual(d["n_with_zero_gap"], 1)
+
+    def test_vsp_bench_check_passes(self):
+        r = subprocess.run([sys.executable, str(ROOT / "bench" / "bench_vsp.py"), "--check"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
 class Formulations(unittest.TestCase):

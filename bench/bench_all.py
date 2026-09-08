@@ -270,6 +270,61 @@ def bench_cost() -> dict:
                      "**不是造一个该上生产的求解器**——生产上该用 HiGHS/Gurobi。")}
 
 
+def bench_cuts() -> dict:
+    """Gomory 分数割：根节点加割，看界抬高多少、节点数变几个。
+
+    **n=12 是反例，留着不删**：割确实抬高了界，节点数反而从 29 涨到 31。
+    割不是免费的——每加一行，每个节点的线性松弛就大一点。
+
+    最后一行是**有效性闸门**：同一个 `cuts=True` 传给混合整数模型必须被拒绝。
+    分数割要求行里所有变量（含松弛变量）都取整数，混合整数不满足，
+    那需要 GMI 割，本仓没做。
+    """
+    from lpmip.cuts import tighten, validate_pure_integer
+
+    rows = []
+    for n in (8, 10, 12, 14):
+        m, *_ = classic.knapsack(seed=3, n=n)
+        _, stats = tighten(m)
+        plain = bb.solve(m)
+        cut = bb.solve(m, cuts=True)
+        st, ref = highs_mip(m)
+        rows.append({"case": "knapsack_%d" % n,
+                     "lp_bound_before": stats["bound_before"],
+                     "lp_bound_after": stats["bound_after"],
+                     "cuts_added": stats["cuts"],
+                     "rounds": stats["rounds"],
+                     "nodes_without_cuts": plain.nodes,
+                     "nodes_with_cuts": cut.nodes,
+                     "mip_obj": round(plain.obj, 6),
+                     "same_optimum_with_cuts": bool(abs(plain.obj - cut.obj) < 1e-6),
+                     "agrees_with_highs": bool(st == "optimal"
+                                               and abs(plain.obj - ref) < 1e-6)})
+
+    cap, profit, fixed, total = classic.production_mip(seed=5, n=7)
+    mixed = classic.build_production(cap, profit, fixed, total, big_m=None)
+    ok, why = validate_pure_integer(mixed)
+    refused = False
+    try:
+        bb.solve(mixed, cuts=True)
+    except ValueError:
+        refused = True
+
+    helped = sum(1 for r in rows if r["nodes_with_cuts"] < r["nodes_without_cuts"])
+    return {"rows": rows,
+            "n_cases": len(rows),
+            "all_agree_with_highs": all(r["agrees_with_highs"] for r in rows),
+            "all_same_optimum": all(r["same_optimum_with_cuts"] for r in rows),
+            "n_helped": helped,
+            "n_hurt": sum(1 for r in rows
+                          if r["nodes_with_cuts"] > r["nodes_without_cuts"]),
+            "mixed_integer_is_refused": bool(refused and not ok),
+            "mixed_integer_reason": why,
+            "note": ("%d/%d 个实例的节点数被割压到 1，**但 n=12 反而从 29 涨到 31**。"
+                     "割抬高了界却让每个节点更贵，净效果可以是负的——"
+                     "这一行留在表里，不挑数据。" % (helped, len(rows)))}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
@@ -279,6 +334,7 @@ def main() -> int:
         "correctness": bench_correctness(),
         "pivot": bench_pivot(),
         "formulations": bench_formulations(),
+        "cuts": bench_cuts(),
         "cost": bench_cost(),
     }
     RESULTS.mkdir(exist_ok=True)

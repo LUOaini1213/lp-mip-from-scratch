@@ -1,0 +1,249 @@
+{
+ "ladder": {
+  "rows": [
+   {
+    "case": "single_depot_n6",
+    "n_vars": 31,
+    "n_cons": 18,
+    "lp_bound": 4064.0,
+    "n_fractional": 0,
+    "mip_obj": 4064.0,
+    "gap_pct": 0.0,
+    "nodes": 1,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "two_depots_n6",
+    "n_vars": 62,
+    "n_cons": 30,
+    "lp_bound": 4064.0,
+    "n_fractional": 0,
+    "mip_obj": 4064.0,
+    "gap_pct": 0.0,
+    "nodes": 1,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "three_depots_n6",
+    "n_vars": 93,
+    "n_cons": 42,
+    "lp_bound": 4064.0,
+    "n_fractional": 0,
+    "mip_obj": 4064.0,
+    "gap_pct": 0.0,
+    "nodes": 1,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "two_depots_asym_n6",
+    "n_vars": 60,
+    "n_cons": 30,
+    "lp_bound": 4092.0,
+    "n_fractional": 0,
+    "mip_obj": 4092.0,
+    "gap_pct": 0.0,
+    "nodes": 1,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "two_depots_capped_n6",
+    "n_vars": 60,
+    "n_cons": 32,
+    "lp_bound": 4097.0,
+    "n_fractional": 0,
+    "mip_obj": 4097.0,
+    "gap_pct": 0.0,
+    "nodes": 1,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "two_depots_cheapveh_n6",
+    "n_vars": 60,
+    "n_cons": 30,
+    "lp_bound": 252.0,
+    "n_fractional": 0,
+    "mip_obj": 252.0,
+    "gap_pct": 0.0,
+    "nodes": 1,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "single_depot_n8",
+    "n_vars": 49,
+    "n_cons": 24,
+    "lp_bound": 4072.0,
+    "n_fractional": 0,
+    "mip_obj": 4072.0,
+    "gap_pct": 0.0,
+    "nodes": 1,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "two_depots_n8",
+    "n_vars": 98,
+    "n_cons": 40,
+    "lp_bound": 4072.0,
+    "n_fractional": 0,
+    "mip_obj": 4072.0,
+    "gap_pct": 0.0,
+    "nodes": 1,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "three_depots_n8",
+    "n_vars": 147,
+    "n_cons": 56,
+    "lp_bound": 4072.0,
+    "n_fractional": 0,
+    "mip_obj": 4072.0,
+    "gap_pct": 0.0,
+    "nodes": 1,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "two_depots_asym_n8",
+    "n_vars": 98,
+    "n_cons": 40,
+    "lp_bound": 4077.0,
+    "n_fractional": 0,
+    "mip_obj": 4077.0,
+    "gap_pct": 0.0,
+    "nodes": 1,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "two_depots_capped_n8",
+    "n_vars": 98,
+    "n_cons": 42,
+    "lp_bound": 4077.0,
+    "n_fractional": 0,
+    "mip_obj": 4077.0,
+    "gap_pct": 0.0,
+    "nodes": 1,
+    "agrees_with_highs": true
+   },
+   {
+    "case": "two_depots_cheapveh_n8",
+    "n_vars": 98,
+    "n_cons": 40,
+    "lp_bound": 237.0,
+    "n_fractional": 0,
+    "mip_obj": 237.0,
+    "gap_pct": 0.0,
+    "nodes": 1,
+    "agrees_with_highs": true
+   }
+  ],
+  "n_rows": 12,
+  "n_rows_with_fractional_lp": 0,
+  "all_agree_with_highs": true,
+  "note": "**只加场站不产生分数松弛。** 非对称空驶、场站容量上限、把车辆固定成本压到与空驶同量级，都试过，12 档全部松弛整数、一个节点解完。原先写在 vsp.py docstring 里的「多一个场站，难度就换一个量级」是错的。"
+ },
+ "counterexamples": {
+  "rows": [
+   {
+    "case": "eligibility_seed17",
+    "n_vars": 148,
+    "n_cons": 55,
+    "lp_bound": 412.5,
+    "n_fractional": 16,
+    "mip_obj": 454.0,
+    "gap_pct": 9.141,
+    "nodes": 5,
+    "agrees_with_highs": true,
+    "n_trips": 8,
+    "n_depots": 3,
+    "vehicle_cost": 100.0
+   },
+   {
+    "case": "eligibility_seed670",
+    "n_vars": 129,
+    "n_cons": 53,
+    "lp_bound": 382.0,
+    "n_fractional": 19,
+    "mip_obj": 382.0,
+    "gap_pct": 0.0,
+    "nodes": 3,
+    "agrees_with_highs": true,
+    "n_trips": 8,
+    "n_depots": 3,
+    "vehicle_cost": 100.0
+   },
+   {
+    "case": "eligibility_seed3845",
+    "n_vars": 99,
+    "n_cons": 38,
+    "lp_bound": 188.0,
+    "n_fractional": 13,
+    "mip_obj": 198.0,
+    "gap_pct": 5.0505,
+    "nodes": 3,
+    "agrees_with_highs": true,
+    "n_trips": 8,
+    "n_depots": 2,
+    "vehicle_cost": 30.0
+   },
+   {
+    "case": "eligibility_seed4189",
+    "n_vars": 134,
+    "n_cons": 51,
+    "lp_bound": 183.0,
+    "n_fractional": 21,
+    "mip_obj": 184.0,
+    "gap_pct": 0.5435,
+    "nodes": 5,
+    "agrees_with_highs": true,
+    "n_trips": 8,
+    "n_depots": 3,
+    "vehicle_cost": 30.0
+   },
+   {
+    "case": "eligibility_seed4764",
+    "n_vars": 129,
+    "n_cons": 53,
+    "lp_bound": 129.5,
+    "n_fractional": 12,
+    "mip_obj": 133.0,
+    "gap_pct": 2.6316,
+    "nodes": 5,
+    "agrees_with_highs": true,
+    "n_trips": 8,
+    "n_depots": 3,
+    "vehicle_cost": 10.0
+   },
+   {
+    "case": "eligibility_seed5948",
+    "n_vars": 127,
+    "n_cons": 52,
+    "lp_bound": 4646.0,
+    "n_fractional": 22,
+    "mip_obj": 5140.0,
+    "gap_pct": 9.6109,
+    "nodes": 7,
+    "agrees_with_highs": true,
+    "n_trips": 8,
+    "n_depots": 3,
+    "vehicle_cost": 1000.0
+   }
+  ],
+  "all_fractional": true,
+  "all_agree_with_highs": true,
+  "all_n_trips_8": true,
+  "n_with_zero_gap": 1,
+  "note": "6 个反例全部落在 n=8（搜索范围 n=4..8 的最大档）。其中 1 个的界间隙是 0.00% —— **松弛出分数解不等于界变松**，存在一个分数最优解和一个整数最优解目标值相同的情形。"
+ },
+ "hunt": {
+  "tried": 6000,
+  "hits": [
+   17,
+   670,
+   3845,
+   4189,
+   4764,
+   5948
+  ],
+  "n_hits": 6,
+  "hit_rate_pct": 0.1,
+  "note": "这一组不在默认路径上重跑（6000 个实例约 8 分钟）。用 `--hunt 6000` 复现；命中的种子必须包含 FRACTIONAL_SEEDS。"
+ }
+}

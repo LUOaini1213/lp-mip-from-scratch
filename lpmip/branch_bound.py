@@ -6,9 +6,10 @@
 
   branching   分支变量怎么挑：most_fractional / first
   search      节点怎么取：best_first（先看界最好的）/ dfs（先扎到底拿可行解）
-  cuts        **未实现**，传 True 会直接抛错——见 `_add_gomory_cuts` 的 docstring
+  cuts        根节点加 **Gomory 分数割**（`lpmip/cuts.py`）。只对纯整数、整数数据的
+              模型有效，不满足就报错拒绝，**不静默降级**
 
-**这两个开关加起来，都不如把模型写对重要。** `bench/bench_formulations.py` 里同一个
+**这三个开关加起来，都不如把模型写对重要。** `bench/bench_formulations.py` 里同一个
 问题换个写法，节点数差两个数量级，而上面三个开关全开也只是几倍。这是这个仓最想讲的一条。
 
 界的处理按最小化写死（`Model` 若是 max，`to_standard_form` 已经取过负）。
@@ -94,7 +95,10 @@ def solve(model: Model, branching: str = "most_fractional", search: str = "best_
 
     cut_model = model
     if cuts:
-        _add_gomory_cuts(model)          # 直接抛 NotImplementedError，不静默降级
+        cut_model, cut_stats = _add_gomory_cuts(model)
+        n_cuts = cut_stats["cuts"]
+        if verbose:
+            log.append({"cuts": cut_stats})
 
     while heap and nodes < max_nodes:
         node = heapq.heappop(heap)
@@ -135,22 +139,17 @@ def solve(model: Model, branching: str = "most_fractional", search: str = "best_
                      nodes, lp_iters, n_cuts, 0.0, log)
 
 
-def _add_gomory_cuts(model: Model, rounds: int = 1, max_cuts: int = 20):
-    """**没有实现。** 这里原本有一个"割平面"，但它是错的，删掉了。
+def _add_gomory_cuts(model: Model, rounds: int = 3, max_cuts: int = 5):
+    """在根节点加 Gomory 分数割，返回 (加过割的模型, 统计)。实现在 `lpmip/cuts.py`。
 
-    第一版写的是：对取分数值 v 的整数变量，加一条 `x <= floor(v)` 或 `x >= ceil(v)`。
-    那不是割——**它会切掉可行的整数解**。有效割的定义是"不切掉任何可行整数点，
-    但切掉当前分数解"；上面那条把整数点也切了，等于把一次分支伪装成一条割，
-    会让求解器返回错误的最优值。
+    **第一版这里放过一个假货**：对取分数值 v 的整数变量加 `x <= floor(v)`。
+    那不是割——它会切掉可行整数解，等于把一次分支伪装成一条割，会让求解器
+    返回错误的最优值。删掉之后曾留一个显式的 NotImplementedError；
+    现在换成了按定义推导的真割，并且**每条割都要先证明抬高了松弛界才保留**。
 
-    真正的 Gomory 分数割要从最终单纯形表里取分数基变量所在的行，
-    导出 `sum(frac(a_ij)·x_j) >= frac(b_i)`（j 取非基列），而且这里的列包含松弛变量，
-    要表达回原始变量还得把 `s_i = b_i - A_i x` 代回去。这些都做得到，但没做——
-    与其上一个自己没把握验对的割，不如把这块留白写在明处。
-
-    **能替代它的东西已经有了**：`bench/bench_formulations.py` 说明**把模型写紧**
-    （手工加上有效不等式、收紧 big-M）带来的节点数下降，比任何搜索开关都大——
-    而那些收紧本身就是人工加的割，只不过是有效的。
+    有效性前提很硬：分数割要求行里所有变量（**含松弛变量**）都取整数，
+    所以只对纯整数、且约束数据为整数的模型成立。混合整数要用 GMI 割，本仓没做，
+    `cuts.validate_pure_integer()` 会带着原因拒绝，而不是悄悄跳过。
     """
-    raise NotImplementedError(
-        "割平面未实现；第一版写的那个会切掉可行整数解，已删除。见本函数 docstring。")
+    from .cuts import tighten          # 延迟导入，避免与 cuts.py 互相 import
+    return tighten(model, rounds=rounds, max_cuts_per_round=max_cuts)
