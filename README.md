@@ -36,6 +36,10 @@ claim and the number that killed it are in the repo.
 ## 30 秒跑通
 
 ```bash
+# 需要 Python 3.10 或 3.11。requirements 把 numpy 钉在 1.24.3，而它没有 cp312 的
+# wheel，3.12 上 pip 会转去源码构建并失败——首次推送时 CI 正是在这里红的。
+# 为什么宁可放弃 3.12 也要钉版本，见文末「诚实边界」第 6 条。
+# 可选：先 python -m venv .venv 建个虚拟环境并激活，省得污染系统环境。
 pip install -r requirements.txt
 python -m unittest discover -s tests -v   # 29 个测试
 python bench/bench_all.py                 # 五组测量 -> results/bench.json
