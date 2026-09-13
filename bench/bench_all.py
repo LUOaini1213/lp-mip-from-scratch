@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
 import statistics
 import sys
 import time
@@ -31,12 +32,36 @@ from problems import classic, transit                                   # noqa: 
 
 RESULTS = ROOT / "results"
 REL_TOL = 1e-6
+# 计时是机器相关的量：同一份代码在不同 CPU / BLAS / 负载下必然给出不同秒数，
+# 逐字段比对只会把 CI 变成随机红灯。所以这三个后缀整块豁免——
+# **代价是「表过期」这件事 `--check` 抓不到**，得靠 tests/test_all.py 里
+# test_the_readme_speed_table_matches_the_committed_bench 把 README 的表钉在
+# results/bench.json 上，再靠 test_the_speed_ordering_holds_on_a_fresh_run
+# 对新跑结果断言机器无关的那部分（序与量级）。
 EXEMPT_SUFFIX = ("seconds", "speed_ratio", "ms")
+# 整棵子树豁免：测量环境是"这组秒数是在哪台机器上量的"的说明，跨机器必然不同。
+EXEMPT_SUBTREE = ("env",)
+
+# 计时重复次数。噪声只会让一次测量变慢、不会变快，所以取 N 次里的最小值
+# 比取平均更接近"这台机器上真正要花多久"。单次计时曾经把 dense_lp_40x60
+# 测成 0.0924 s（相邻两档都只有 0.10 / 0.21 s），比值凭空冒出一个 41.1。
+REPEATS = 5
+
+
+def best_of(fn, repeats: int = REPEATS) -> float:
+    """跑 repeats 次，返回最快的一次的耗时（秒）。"""
+    best = float("inf")
+    for _ in range(repeats):
+        t0 = time.perf_counter()
+        fn()
+        best = min(best, time.perf_counter() - t0)
+    return best
 
 
 def compare(a, b, path: str = "") -> list:
     """递归逐字段比对：计数与状态严格相等，连续量留容差，计时豁免。"""
-    if any(path.endswith("/" + s) or path.endswith(s) for s in EXEMPT_SUFFIX):
+    if any(path.endswith("/" + s) or path.endswith(s)
+           for s in EXEMPT_SUFFIX + EXEMPT_SUBTREE):
         return []
     if isinstance(a, dict) and isinstance(b, dict):
         out = []
@@ -213,22 +238,113 @@ def bench_formulations() -> dict:
 
 
 # ---------------------------------------------------------------- 4 代价
+def measurement_env() -> dict:
+    """这组秒数是在哪台机器上量的。**只写进 JSON 与 README，不参与 `--check` 比对**
+    （见 EXEMPT_SUBTREE）——换台机器本来就该是另一组数。"""
+    try:
+        blas = ",".join(np.__config__.get_info("blas_opt").get("libraries", [])) or "unknown"
+    except Exception:                                    # numpy 换实现后接口会变
+        blas = "unknown"
+    return {"os": "%s %s" % (platform.system(), platform.release()),
+            "cpu": platform.processor() or platform.machine(),
+            "python": platform.python_version(),
+            "numpy": np.__version__,
+            "blas": blas}
+
+
+README_TABLE_BEGIN = "<!-- speed-table:begin 由 bench/bench_all.py 生成，勿手改 -->"
+README_TABLE_END = "<!-- speed-table:end -->"
+
+
+def render_speed_table(cost: dict) -> str:
+    """把 cost 这一组渲染成 README 里那张表。
+
+    **README 的速度表是生成的，不是手打的。** 这个仓在这里栽过一次：第一版的表是
+    手打的，`results/bench.json` 后来被重算过，表却没跟着改——而计时字段整块豁免于
+    `--check`，于是没有任何机制发现它过期。现在表由本函数从同一份 JSON 渲染，
+    `--check` 会把 README 里的这一段和渲染结果逐字比对。
+    """
+    rows = cost["rows"]
+    top = max(r["speed_ratio"] for r in rows)
+    lines = [README_TABLE_BEGIN,
+             "",
+             "| 实例 | 我 | HiGHS | 比值 |",
+             "|---|---|---|---|"]
+    for r in rows:
+        ratio = r["speed_ratio"]
+        if ratio < 1.0:
+            cell = "**%.1f**（我更快）" % ratio
+        elif ratio == top:
+            cell = "**%.1f**" % ratio
+        else:
+            cell = "%.1f" % ratio
+        lines.append("| %s | %.4f s | %.4f s | %s |"
+                     % (r["case"], r["mine_seconds"], r["highs_seconds"], cell))
+    env = cost["env"]
+    lines += [
+        "",
+        "> 每格取 %d 次里最快的一次（噪声只会让一次测量变慢，不会变快）。"
+        "测量环境：%s ／ %s ／ Python %s ／ numpy %s（BLAS: %s）。"
+        % (cost["repeats"], env["os"], env["cpu"], env["python"], env["numpy"], env["blas"]),
+        ">",
+        "> **这是全仓唯一一组机器相关的数字**，换台机器重跑必然是另一组秒数，"
+        "所以 `--check` 不比对秒数本身；它比对的是**这张表与 `results/bench.json` 一致**。",
+        README_TABLE_END,
+    ]
+    return "\n".join(lines)
+
+
+def sync_readme_table(cost: dict) -> bool:
+    """把 README 里两个标记之间的内容换成新渲染的表。返回是否发生了改动。"""
+    path = ROOT / "README.md"
+    text = path.read_text(encoding="utf-8")
+    i, j = text.find(README_TABLE_BEGIN), text.find(README_TABLE_END)
+    if i < 0 or j < 0:
+        raise SystemExit("README.md 里找不到 speed-table 标记")
+    fresh = render_speed_table(cost)
+    new = text[:i] + fresh + text[j + len(README_TABLE_END):]
+    if new == text:
+        return False
+    path.write_text(new, encoding="utf-8")
+    return True
+
+
+def check_readme_table(cost: dict) -> list:
+    """README 里的表必须与已提交的 cost 一致。返回不一致的说明（空表示一致）。"""
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    i, j = text.find(README_TABLE_BEGIN), text.find(README_TABLE_END)
+    if i < 0 or j < 0:
+        return ["README.md 里找不到 speed-table 标记"]
+    got = text[i:j + len(README_TABLE_END)]
+    want = render_speed_table(cost)
+    if got == want:
+        return []
+    g, w = got.splitlines(), want.splitlines()
+    diff = ["README 的速度表与 results/bench.json 不一致（跑一次 `python bench/bench_all.py` 会重新生成）："]
+    for k in range(max(len(g), len(w))):
+        a = g[k] if k < len(g) else "<缺行>"
+        b = w[k] if k < len(w) else "<多行>"
+        if a != b:
+            diff.append("  README: %s" % a)
+            diff.append("  应为  : %s" % b)
+    return diff
+
+
 def bench_cost() -> dict:
     rows = []
     for n in (3, 4, 5, 6):
         m = classic.klee_minty(n)
-        t0 = time.perf_counter(); solve_model(m); mine = time.perf_counter() - t0
+        mine = best_of(lambda m=m: solve_model(m))
         sf = m.to_standard_form()
-        t0 = time.perf_counter()
-        linprog(sf.c, A_eq=sf.A, b_eq=sf.b, bounds=(0, None), method="highs")
-        theirs = time.perf_counter() - t0
+        theirs = best_of(lambda sf=sf: linprog(sf.c, A_eq=sf.A, b_eq=sf.b,
+                                               bounds=(0, None), method="highs"))
         rows.append({"case": "klee_minty_%d" % n, "mine_seconds": round(mine, 6),
                      "highs_seconds": round(theirs, 6),
                      "speed_ratio": round(mine / max(theirs, 1e-9), 1)})
     for n in (10, 12, 14):
         m, *_ = classic.knapsack(seed=3, n=n)
-        t0 = time.perf_counter(); bb.solve(m); mine = time.perf_counter() - t0
-        t0 = time.perf_counter(); highs_mip(m); theirs = time.perf_counter() - t0
+        mine = best_of(lambda m=m: bb.solve(m))
+        theirs = best_of(lambda m=m: highs_mip(m))
         rows.append({"case": "knapsack_%d" % n, "mine_seconds": round(mine, 6),
                      "highs_seconds": round(theirs, 6),
                      "speed_ratio": round(mine / max(theirs, 1e-9), 1)})
@@ -251,11 +367,12 @@ def bench_cost() -> dict:
             obj = obj + c[j] * xs[j]
         mod.set_objective(obj)
 
-        t0 = time.perf_counter(); r = solve_model(mod); mine = time.perf_counter() - t0
+        r = solve_model(mod)
+        mine = best_of(lambda mod=mod: solve_model(mod))
         sf = mod.to_standard_form()
-        t0 = time.perf_counter()
         ref = linprog(sf.c, A_eq=sf.A, b_eq=sf.b, bounds=(0, None), method="highs")
-        theirs = time.perf_counter() - t0
+        theirs = best_of(lambda sf=sf: linprog(sf.c, A_eq=sf.A, b_eq=sf.b,
+                                               bounds=(0, None), method="highs"))
         rows.append({"case": "dense_lp_%dx%d" % (m_, n_), "mine_seconds": round(mine, 6),
                      "highs_seconds": round(theirs, 6),
                      "speed_ratio": round(mine / max(theirs, 1e-9), 1),
@@ -264,10 +381,14 @@ def bench_cost() -> dict:
                          and abs(r.obj - mod.objective_value(sf.recover(ref.x)))
                          < 1e-6 * max(1.0, abs(r.obj)))})
     return {"rows": rows,
-            "note": ("**「比 HiGHS 慢」这句话在小实例上不成立**——背包和 Klee–Minty 这种规模上，"
-                     "HiGHS 的固定开销盖过求解本身，我的实现有时反而更快。要看真实差距得把规模拉起来："
-                     "随机稠密 LP 上差距随规模迅速拉开。写这个仓是为了把方法搞明白，"
-                     "**不是造一个该上生产的求解器**——生产上该用 HiGHS/Gurobi。")}
+            "repeats": REPEATS,
+            "env": measurement_env(),
+            "note": ("每格取 %d 次里最快的一次。**「比 HiGHS 慢」这句话在小实例上不成立**——"
+                     "背包和 Klee–Minty 这种规模上，HiGHS 的固定开销盖过求解本身，"
+                     "我的实现有时反而更快。要看真实差距得把规模拉起来：稠密 LP 上差距到几十倍量级。"
+                     "**这一组是全仓唯一一组机器相关的数字**，`--check` 不比对它（见 EXEMPT_SUFFIX），"
+                     "换台机器重跑必然是另一组秒数。写这个仓是为了把方法搞明白，"
+                     "**不是造一个该上生产的求解器**——生产上该用 HiGHS/Gurobi。" % REPEATS)}
 
 
 def bench_cuts() -> dict:
@@ -342,16 +463,26 @@ def main() -> int:
     if args.check:
         if not out.exists():
             print("missing", out); return 1
-        drift = compare(json.loads(out.read_text(encoding="utf-8")), fresh)
+        committed = json.loads(out.read_text(encoding="utf-8"))
+        drift = compare(committed, fresh)
         if drift:
             print("DRIFT (%d 处)：" % len(drift))
             for line in drift[:20]:
                 print("  " + line)
             return 1
-        print("ok: results 与新跑一致（计时豁免）")
+        # 计时整块豁免于上面的比对，所以单独钉一件事：README 那张表必须还是
+        # 已提交 results/bench.json 渲染出来的样子。这一步与机器无关。
+        stale = check_readme_table(committed["cost"])
+        if stale:
+            for line in stale:
+                print(line)
+            return 1
+        print("ok: results 与新跑一致（计时豁免），README 速度表与已提交结果一致")
         return 0
     out.write_text(json.dumps(fresh, ensure_ascii=False, indent=1), encoding="utf-8")
     print("wrote", out)
+    if sync_readme_table(fresh["cost"]):
+        print("updated README.md 速度表（这台机器的秒数）")
     print("正确性：%d 个实例，全部与 HiGHS 一致 = %s"
           % (fresh["correctness"]["n_cases"], fresh["correctness"]["all_agree"]))
     return 0

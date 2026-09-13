@@ -381,13 +381,48 @@ class CommittedResults(unittest.TestCase):
         self.assertGreaterEqual(d["correctness"]["n_cases"], 10)
 
     def test_the_speed_claim_is_stated_honestly(self):
-        """小实例上我并不慢——这一点不许在 README 里被说成"慢几个数量级"。"""
+        """小实例上我并不慢——这一点不许在 README 里被说成"慢几个数量级"。
+
+        这一条读的是**冻结值**，所以它对"表过期"恒为绿。真正盯着过期的是下面两条。
+        """
         rows = {r["case"]: r for r in json.loads(
             (ROOT / "results" / "bench.json").read_text(encoding="utf-8"))["cost"]["rows"]}
         self.assertLess(rows["klee_minty_3"]["speed_ratio"], 2.0,
                         "小 LP 上 HiGHS 的固定开销占主导，我不该被说成慢")
         self.assertGreater(rows["dense_lp_80x120"]["speed_ratio"], 10.0,
                            "规模拉起来之后差距才显出来")
+
+    def test_the_readme_speed_table_matches_the_committed_bench(self):
+        """README 的速度表必须还是已提交 results/bench.json 渲染出来的那张。
+
+        **这条测试存在的理由是它抓到过一次真事故。** 计时字段整块豁免于 `--check`
+        （`bench_all.py` 的 EXEMPT_SUFFIX，因为秒数本来就不跨机器复现），于是"表过期"
+        这件事一度没有任何机制会发现：`results/bench.json` 被重算过，README 里手打的
+        那张表没跟着改，`--check` 照样绿、CI 照样绿，而一个面试官只要点开 JSON
+        对一格就能看出对不上。现在表由 `render_speed_table` 从同一份 JSON 生成，
+        改错任何一位数字，这条测试与 `--check` 都会红。
+        """
+        from bench.bench_all import check_readme_table
+        cost = json.loads((ROOT / "results" / "bench.json").read_text(
+            encoding="utf-8"))["cost"]
+        self.assertEqual(check_readme_table(cost), [],
+                         "README 的速度表与 results/bench.json 不一致")
+
+    def test_the_speed_ordering_holds_on_a_fresh_run(self):
+        """秒数跨机器不成立，能跨机器断言的是**序**——所以这条测的是新跑结果。
+
+        上面那条 `test_the_speed_claim_is_stated_honestly` 读的是冻结 JSON，
+        换台机器也照样绿；这条重新测一遍，断言的是三件与机器无关的事：
+        最小的 LP 上我更快、大稠密 LP 上我慢一个数量级以上、比值随规模显著变大。
+        阈值留得比本机实测宽，因为共享 runner 上 HiGHS 的固定开销占比会变。
+        """
+        from bench.bench_all import bench_cost
+        rows = {r["case"]: r for r in bench_cost()["rows"]}
+        small = rows["klee_minty_3"]["speed_ratio"]
+        big = rows["dense_lp_80x120"]["speed_ratio"]
+        self.assertLess(small, 2.0, "最小的 LP 上 HiGHS 的固定开销占主导，我不该被说成慢")
+        self.assertGreater(big, 8.0, "稠密 LP 拉到 80×120，我该慢一个数量级以上")
+        self.assertGreater(big, 5 * small, "比值要随规模显著变大——这个序才是机器无关的")
 
 
 if __name__ == "__main__":
