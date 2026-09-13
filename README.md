@@ -14,7 +14,9 @@ raise the bound and still make the tree *bigger*. **Two**: I wrote down the conc
 and it was **false** — 12 configurations and 1500 random multi-depot instances all had an
 integral relaxation. The thing that actually makes MDVSP hard is *depot eligibility*, and
 even then only 6 of 6000 random instances have a fractional relaxation. Both the wrong
-claim and the number that killed it are in the repo.
+claim and the numbers that killed it are in the repo, and both searches are re-run from
+scratch on every push (`--hunt 6000` and `--hunt-baseline 1500`), so those two sample
+sizes are CI output rather than prose.
 
 自己写的 LP / MIP 建模层 + 单纯形法 + 分支定界 + **真的 Gomory 分数割**，
 每个答案都拿 HiGHS 对过，割则**按定义**枚举全部 2ⁿ 个整数点验有效性。
@@ -41,11 +43,13 @@ claim and the number that killed it are in the repo.
 # 为什么宁可放弃 3.12 也要钉版本，见文末「诚实边界」第 6 条。
 # 可选：先 python -m venv .venv 建个虚拟环境并激活，省得污染系统环境。
 pip install -r requirements.txt
-python -m unittest discover -s tests -v   # 29 个测试
-python bench/bench_all.py                 # 五组测量 -> results/bench.json
-python bench/bench_all.py --check         # 与已提交结果比对
-python bench/bench_vsp.py                 # 车辆调度 -> results/vsp.json
-python bench/bench_vsp.py --hunt 6000     # 重跑那次随机搜索（约 8 分钟，不进 CI）
+
+python -m unittest discover -s tests -v        # 30 个测试
+python bench/bench_all.py                      # 五组测量 -> results/bench.json
+python bench/bench_all.py --check              # 与已提交结果比对
+python bench/bench_vsp.py                      # 车辆调度 -> results/vsp.json
+python bench/bench_vsp.py --hunt 6000          # 重搜那 6 个反例（本机约 1 分钟）
+python bench/bench_vsp.py --hunt-baseline 1500 # 重跑对照组（本机约 40 秒）
 ```
 
 ```python
@@ -183,7 +187,13 @@ MDVSP 是 NP 难的，所以松弛该出分数解、该分支。**然后我去�
 | 两场站 + 车辆成本压到 40 n=8 | 98 | 237.00 | **0** | 1 | 是 |
 
 n=6 的六档同样全是 0。再随机撒 **1500 个**多场站实例（n=4..8，2~3 场站，随机成本），
-**依然 0 个出分数松弛**。
+**依然 0 个出分数松弛，也 0 个有界间隙**（线性松弛的最优值都等于整数最优值）。
+
+这 1500 个是**对照组**：`bench/bench_vsp.py --hunt-baseline 1500` 与下面那个
+`--hunt 6000` 跑的是**同一批实例**，逐位相同的时刻表、场站、空驶表、车辆成本，
+唯一的差别是这一组不加场站准入限制（`eligible=None`）。所以"难的是准入不是场站数"
+这句话是被对照出来的，不是猜出来的。两组 CI 每次推送都重跑，
+数字落在 `results/vsp.json` 的 `baseline_hunt` 与 `hunt` 两块。
 
 **错在哪：NP 难是关于最坏实例的陈述，不是关于随机实例的承诺。**
 "矩阵不再全幺模"只说明整数性不再被*保证*，不等于分数解会*出现*。
@@ -277,6 +287,7 @@ ValueError: Gomory 分数割不适用于该模型：存在连续变量 ['x0', 'x
 | **割的有效性** | **枚举全部 2ⁿ 个整数点，按定义验"没切掉可行点"** |
 | 归约到标准型 | 四件事各有独立测试，外加"自由变量带上界"这个易错组合 |
 | 已提交的 results | `--check` 与新跑逐字段比对，不是只读旧值 |
+| 6/6000 与 1500/0 | CI 每次推送把两次随机搜索**整个重跑**（`--hunt 6000`、`--hunt-baseline 1500`），不是读冻结值 |
 | **模型构造可复现** | 换三个 `PYTHONHASHSEED` 起子进程，**弧表与实例字段必须逐位相同** |
 | lpmip/ 不依赖 SciPy | CI 里卸掉 SciPy 再跑一遍，免得"自己实现"悄悄靠在参照求解器上 |
 
@@ -324,8 +335,8 @@ ubuntu 那次正好落在了它上面。所以：
 | 列生成 / 集合划分 | 读了，**没实现**，见「诚实边界」 |
 
 需要说清的一点：**文献里我没有找到一句可直接引用的"MDVSP 松弛通常整数"**，
-所以 README 里那张表的依据是**本仓自己跑出来的 12 档 + 1500 个随机实例**，
-不是转述别人的结论。找不到的东西就说找不到。
+所以 README 里那张表的依据是**本仓自己跑出来的 12 档 + 1500 个对照实例**
+（`--hunt-baseline 1500`，CI 每次重算），不是转述别人的结论。找不到的东西就说找不到。
 
 - [A time–space network based exact optimization model for multi-depot bus scheduling (Kliewer et al., EJOR 2006)](https://www.sciencedirect.com/science/article/abs/pii/S0377221705002274)
 - [Solving a Large-Scale Multi-Depot Vehicle Scheduling Problem in Urban Bus Systems (2018)](https://onlinelibrary.wiley.com/doi/10.1155/2018/4868906)
@@ -358,8 +369,8 @@ problems/transit.py    班车最小车队：指派型 vs big-M 型
 problems/classic.py    Beale 循环、Klee–Minty、背包、配料、固定成本生产
 problems/vsp.py        时空网络 VSP / MDVSP，以及那条被推翻的结论
 bench/bench_all.py     五组测量（含割），--check 比对已提交结果
-bench/bench_vsp.py     车辆调度阶梯 + 6 个冻结反例，--hunt N 重跑随机搜索
-tests/test_all.py      29 个测试，全部对着 HiGHS 或按定义验
+bench/bench_vsp.py     车辆调度阶梯 + 6 个冻结反例，--hunt N / --hunt-baseline N 重跑两次搜索
+tests/test_all.py      30 个测试，全部对着 HiGHS 或按定义验
 ```
 
 ---
@@ -377,9 +388,8 @@ tests/test_all.py      29 个测试，全部对着 HiGHS 或按定义验
 6. **CI 只覆盖 Python 3.10 与 3.11。** `requirements.txt` 把 numpy 钉在 1.24.3
    以保证 `--check` 在 CI 上逐位复现，而那个版本没有 cp312 的 wheel——首次推送时
    CI 正是在 3.12 上红的。放宽版本就能上 3.12，但逐位复现就没了保证；两者只能选一个。
-7. **`--hunt 6000` 那一跑没进 CI**（约 8 分钟）。结果以 `FRACTIONAL_SEEDS` 的形式冻结，
-   CI 只验这 6 个种子仍然出分数松弛，**不重跑搜索**。所以"6/6000"这个比率
-   是本机跑的，不是每次 CI 都复算的。
+7. **计时是全仓唯一一组机器相关的数字。** 第 5 条那张速度表只在生成它的那台机器上成立。
+   跨机器成立的是它的序，不是它的秒数。
 8. 一句话：**可以说**「自己实现了 LP/MIP 的建模、单纯形、分支定界与 Gomory 分数割，
    并用 HiGHS 逐实例验证，还测出并推翻了自己写下的一条结论」；
    **不可以说**「写了一个可用的求解器」。

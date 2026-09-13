@@ -244,6 +244,38 @@ class MultiDepot(unittest.TestCase):
             self.assertAlmostEqual(mip.obj, ref, places=6, msg="seed=%d" % seed)
             self.assertGreater(mip.nodes, 1, "seed=%d 出了分数解就该分支" % seed)
 
+    def test_the_control_group_has_a_generation_path_not_just_prose(self):
+        """英文首屏那个 **1500** 必须是跑得出来的数，不是散文里的一个数。
+
+        原先它只以散文形式存在：没有 CLI、没有 `results/vsp.json` 字段、没有测试，
+        任何人（包括我自己）要验证都得先重写一段代码，写完还没有已提交的值可对。
+        现在它是 `--hunt-baseline N` 的输出，CI 每次推送重跑满 1500 个。
+        这条测试只跑前 40 个（几秒），验的是**入口存在且对照组构造正确**。
+        """
+        d = json.loads((ROOT / "results" / "vsp.json").read_text(
+            encoding="utf-8"))["baseline_hunt"]
+        self.assertEqual(d["tried"], vsp.BASELINE_TRIED)
+        self.assertEqual(d["n_hits"], 0)
+        self.assertEqual(d["n_with_gap"], 0)
+
+        from bench.bench_vsp import hunt
+        h = hunt(40, with_eligibility=False, check_gap=True)
+        self.assertEqual(h["tried"], 40)
+        self.assertEqual(h["hits"], [], "对照组不该有分数松弛")
+        self.assertEqual(h["gap_seeds"], [], "对照组的松弛界该等于整数最优")
+
+        # 两组只差"场站准入限制"这一条：同一个种子，班次覆盖约束一条不差（每个班次一条），
+        # 不加准入则每个班次每个场站都有列、所以变量更多，而松弛从分数变回整数。
+        # 这才是"难的是准入不是场站数"的对照。
+        with_e = vsp.model_from_random(17)
+        without_e = vsp.model_from_random(17, with_eligibility=False)
+        covers = lambda m: sum(1 for c in m.cons if c.name.startswith("cover_"))
+        self.assertEqual(covers(with_e), covers(without_e))
+        self.assertGreater(len(without_e.vars), len(with_e.vars))
+        frac = lambda r: sum(1 for v in r.x if abs(v - round(v)) > 1e-6)
+        self.assertGreater(frac(solve_model(with_e)), 0)
+        self.assertEqual(frac(solve_model(without_e)), 0)
+
     def test_model_construction_is_reproducible_across_processes(self):
         """集合的迭代顺序按哈希走，逐进程不同——建模时碰一次集合就会漏进不确定性。
 
