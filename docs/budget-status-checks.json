@@ -7,7 +7,7 @@
   "scipy": "1.18.0",
   "tests": {
     "command": "python -B -m unittest discover -s tests -v",
-    "passed": 35,
+    "passed": 36,
     "failed": 0,
     "skipped": 0,
     "includes": "Existing bench_all.py --check and bench_vsp.py --check subprocess assertions, no report writes."
@@ -19,8 +19,8 @@
   },
   "source_sha256": {
     "lpmip/simplex.py": "d4cb86b02e51713c71bb4bdbb5778e9a62563de239e674acfd4add63b10d623e",
-    "lpmip/branch_bound.py": "2f08fdd1b280366fd7a19f2165c8746588b551790e91b9edabc19d3f1ef8fcfd",
-    "tests/test_iteration_limits.py": "e86d7db29bc25e22f1c3d3695b9430ff3251229e9793d532a658cf8574339427"
+    "lpmip/branch_bound.py": "8a0e98d05e578045185033c10ea462bc7928529371abb08ae4babdd6454843b0",
+    "tests/test_iteration_limits.py": "c30bf71c74571e81f52f213e4adeb29bb4c10f0680a0b413a33128c8c6c20b6b"
   },
   "external_model_calls": 0,
   "gpu_or_sumo_runs": 0,

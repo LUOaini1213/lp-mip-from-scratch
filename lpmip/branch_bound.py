@@ -81,6 +81,9 @@ def solve(model: Model, branching: str = "most_fractional", search: str = "best_
     int_idx = model.integer_vars()
     if not int_idx:
         r = solve_model(model)
+        if r.status in ("iteration_limit", "cycling"):
+            return MIPResult("lp_limit", r.x, r.obj, 1, r.iterations, gap=np.nan,
+                             log=[{"node": 1, "lp_status": r.status, "phase": "incomplete_relaxation"}])
         return MIPResult(r.status, r.x, r.obj, 1, r.iterations)
 
     minimise = (model.sense == "min")

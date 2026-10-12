@@ -37,7 +37,7 @@ claim and the number that killed it are in the repo.
 
 ```bash
 pip install -r requirements.txt
-python -m unittest discover -s tests -v   # 35 个测试（29 个原有 + 6 个预算/状态回归）
+python -m unittest discover -s tests -v   # 36 个测试（29 个原有 + 7 个预算/状态回归）
 python bench/bench_all.py                 # 五组测量 -> results/bench.json
 python bench/bench_all.py --check         # 与已提交结果比对
 python bench/bench_vsp.py                 # 车辆调度 -> results/vsp.json

@@ -69,6 +69,19 @@ class BranchBoundLimitTests(unittest.TestCase):
                 self.assertEqual(result.nodes, 1)
                 self.assertEqual(result.log[-1]["lp_status"], status)
 
+    def test_lp_only_entry_keeps_limit_and_unknown_gap(self):
+        model = Model(sense="min")
+        x = model.add_var("x", 0, 1)
+        model.set_objective(x)
+        for status in ["iteration_limit", "cycling"]:
+            with self.subTest(status=status), patch.object(bb, "solve_model", return_value=self.limited(status)):
+                result = bb.solve(model)
+                self.assertEqual(result.status, "lp_limit")
+                self.assertIsNone(result.x)
+                self.assertTrue(np.isnan(result.obj))
+                self.assertTrue(np.isnan(result.gap))
+                self.assertEqual(result.log[-1]["lp_status"], status)
+
     def test_incumbent_survives_without_false_optimality_or_gap(self):
         # Scripted relaxations isolate B&B propagation, not a measured solver result.
         rows = [LPResult("optimal", np.array([.5]), .5, 1, "bland"),
