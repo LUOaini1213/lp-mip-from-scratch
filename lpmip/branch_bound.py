@@ -30,7 +30,7 @@ EPS = 1e-7
 
 @dataclass
 class MIPResult:
-    status: str                  # optimal / infeasible / node_limit
+    status: str                  # optimal / infeasible / node_limit / lp_limit / lp_unbounded (LP-only passthrough also possible)
     x: np.ndarray | None
     obj: float
     nodes: int                   # 解过线性松弛的节点数
@@ -81,7 +81,11 @@ def solve(model: Model, branching: str = "most_fractional", search: str = "best_
     int_idx = model.integer_vars()
     if not int_idx:
         r = solve_model(model)
-        return MIPResult(r.status, r.x, r.obj, 1, r.iterations)
+        if r.status in ("iteration_limit", "cycling"):
+            return MIPResult("lp_limit", r.x, r.obj, 1, r.iterations, gap=np.nan,
+                             log=[{"node": 1, "lp_status": r.status, "phase": "incomplete_relaxation"}])
+        return MIPResult(r.status, r.x, r.obj, 1, r.iterations,
+                         gap=0.0 if r.status == "optimal" else np.nan)
 
     minimise = (model.sense == "min")
     best_obj = INF if minimise else -INF
@@ -107,8 +111,20 @@ def solve(model: Model, branching: str = "most_fractional", search: str = "best_
         nodes += 1
         lp_iters += r.iterations
 
+        if r.status in ("iteration_limit", "cycling"):
+            # This node has no certified relaxation bound. Dropping it could
+            # incorrectly certify either infeasibility or global optimality.
+            log.append({"node": nodes, "lp_status": r.status, "phase": "incomplete_relaxation"})
+            return MIPResult("lp_limit", best_x, best_obj if best_x is not None else np.nan,
+                             nodes, lp_iters, n_cuts, np.nan, log)
+        if r.status == "unbounded":
+            # An unbounded relaxation is not an infeasibility certificate, nor
+            # does it establish an integer-feasible unbounded ray.
+            log.append({"node": nodes, "lp_status": r.status, "phase": "unresolved_relaxation"})
+            return MIPResult("lp_unbounded", best_x, best_obj if best_x is not None else np.nan,
+                             nodes, lp_iters, n_cuts, np.nan, log)
         if r.status != "optimal":
-            continue                                     # 不可行或无界，剪掉
+            continue                                     # 已收敛且证明不可行，剪掉
         bound = r.obj
         if best_x is not None:                           # 界剪枝
             if minimise and bound >= best_obj - 1e-9:
@@ -136,7 +152,7 @@ def solve(model: Model, branching: str = "most_fractional", search: str = "best_
     if nodes >= max_nodes and heap:
         status = "node_limit"
     return MIPResult(status, best_x, best_obj if best_x is not None else np.nan,
-                     nodes, lp_iters, n_cuts, 0.0, log)
+                     nodes, lp_iters, n_cuts, np.nan if status != "optimal" else 0.0, log)
 
 
 def _add_gomory_cuts(model: Model, rounds: int = 3, max_cuts: int = 5):
