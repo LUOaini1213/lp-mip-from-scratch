@@ -30,7 +30,7 @@ EPS = 1e-7
 
 @dataclass
 class MIPResult:
-    status: str                  # optimal / infeasible / node_limit
+    status: str                  # optimal / infeasible / node_limit / lp_limit (LP-only passthrough also possible)
     x: np.ndarray | None
     obj: float
     nodes: int                   # 解过线性松弛的节点数
@@ -107,6 +107,12 @@ def solve(model: Model, branching: str = "most_fractional", search: str = "best_
         nodes += 1
         lp_iters += r.iterations
 
+        if r.status in ("iteration_limit", "cycling"):
+            # This node has no certified relaxation bound. Dropping it could
+            # incorrectly certify either infeasibility or global optimality.
+            log.append({"node": nodes, "lp_status": r.status, "phase": "incomplete_relaxation"})
+            return MIPResult("lp_limit", best_x, best_obj if best_x is not None else np.nan,
+                             nodes, lp_iters, n_cuts, np.nan, log)
         if r.status != "optimal":
             continue                                     # 不可行或无界，剪掉
         bound = r.obj

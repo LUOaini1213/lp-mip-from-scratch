@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "kind": "offline_budget_status_regressions",
+  "base_commit": "58ebd4c3035682f82d918eb3cd3cfd2d65270518",
+  "python": "3.13.14",
+  "numpy": "2.5.0",
+  "scipy": "1.18.0",
+  "tests": {
+    "command": "python -B -m unittest discover -s tests -v",
+    "passed": 35,
+    "failed": 0,
+    "skipped": 0,
+    "includes": "Existing bench_all.py --check and bench_vsp.py --check subprocess assertions, no report writes."
+  },
+  "boundary": "Phase-I limit is not a mathematical infeasibility certificate. Scripted LPResults test only B&B propagation, not performance. Existing phase-II cycling name is retained for compatibility.",
+  "historical_git_blobs": {
+    "results/bench.json": "45f11c4a6a4e5022a42888d911d69593f029c810",
+    "results/vsp.json": "64270d46b12414cd3c92075d46388c31c0362c6b"
+  },
+  "source_sha256": {
+    "lpmip/simplex.py": "d4cb86b02e51713c71bb4bdbb5778e9a62563de239e674acfd4add63b10d623e",
+    "lpmip/branch_bound.py": "2f08fdd1b280366fd7a19f2165c8746588b551790e91b9edabc19d3f1ef8fcfd",
+    "tests/test_iteration_limits.py": "e86d7db29bc25e22f1c3d3695b9430ff3251229e9793d532a658cf8574339427"
+  },
+  "external_model_calls": 0,
+  "gpu_or_sumo_runs": 0,
+  "new_performance_claims": false,
+  "source_hash_policy": "SHA256 of LF-normalized UTF-8 source, independent of Windows checkout conversion."
+}

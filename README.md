@@ -37,7 +37,7 @@ claim and the number that killed it are in the repo.
 
 ```bash
 pip install -r requirements.txt
-python -m unittest discover -s tests -v   # 29 个测试
+python -m unittest discover -s tests -v   # 35 个测试（29 个原有 + 6 个预算/状态回归）
 python bench/bench_all.py                 # 五组测量 -> results/bench.json
 python bench/bench_all.py --check         # 与已提交结果比对
 python bench/bench_vsp.py                 # 车辆调度 -> results/vsp.json
@@ -55,6 +55,14 @@ m.set_objective(5*x[0] + 4*x[1] + 3*x[2])
 r = bb.solve(m)             # -> status='optimal', obj=9.0, nodes=5
 r = bb.solve(m, cuts=True)  # 根节点加 Gomory 分数割
 ```
+
+**2026-10-12：有限预算的状态边界。** 单纯形第一阶段耗尽迭代预算时返回
+`iteration_limit`，不会把尚未收敛的人工目标当作不可行证书；自动 Bland
+重启后仍耗尽也一样。B&B 遇到 `iteration_limit` 或历史 `cycling` 状态时
+返回 `lp_limit`，保留已找到的 incumbent，但不宣称全局最优，gap 为未知。
+调用方应检查 `status` 后再使用解；预算未完成不代表模型不可行。
+这项修复没有改动既有 benchmark / VSP 结果，
+验收见 [budget-status-checks.json](docs/budget-status-checks.json)。
 
 ---
 
