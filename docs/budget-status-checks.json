@@ -7,23 +7,24 @@
   "scipy": "1.18.0",
   "tests": {
     "command": "python -B -m unittest discover -s tests -v",
-    "passed": 36,
+    "passed": 41,
     "failed": 0,
     "skipped": 0,
     "includes": "Existing bench_all.py --check and bench_vsp.py --check subprocess assertions, no report writes."
   },
-  "boundary": "Phase-I limit is not a mathematical infeasibility certificate. Scripted LPResults test only B&B propagation, not performance. Existing phase-II cycling name is retained for compatibility.",
+  "boundary": "Phase-I limit is not an infeasibility certificate. B&B LP limits and unbounded relaxations are unresolved, with incumbent retained and gap unknown. An unbounded LP relaxation proves neither integer feasibility nor an integer-unbounded ray. Node-limit and nonoptimal results have no finite solution gap. Scripted LPResults only test caller propagation; actual small models test feasible, infeasible and unbounded boundaries. Legacy phase-II cycling name remains compatible.",
   "historical_git_blobs": {
     "results/bench.json": "45f11c4a6a4e5022a42888d911d69593f029c810",
     "results/vsp.json": "64270d46b12414cd3c92075d46388c31c0362c6b"
   },
   "source_sha256": {
     "lpmip/simplex.py": "d4cb86b02e51713c71bb4bdbb5778e9a62563de239e674acfd4add63b10d623e",
-    "lpmip/branch_bound.py": "8a0e98d05e578045185033c10ea462bc7928529371abb08ae4babdd6454843b0",
-    "tests/test_iteration_limits.py": "c30bf71c74571e81f52f213e4adeb29bb4c10f0680a0b413a33128c8c6c20b6b"
+    "lpmip/branch_bound.py": "6782f09838af582b6f4a136f5e77cf3e8965339d3c2b42b522d0135c1d400f19",
+    "tests/test_iteration_limits.py": "b36788875e9d494fe2f876313d45aa1393ba1ed221457463a322e3eea3757b1e"
   },
   "external_model_calls": 0,
   "gpu_or_sumo_runs": 0,
   "new_performance_claims": false,
-  "source_hash_policy": "SHA256 of LF-normalized UTF-8 source, independent of Windows checkout conversion."
+  "source_hash_policy": "SHA256 of LF-normalized UTF-8 source, independent of Windows checkout conversion.",
+  "independent_review": "Root reproduced unbounded max x integer >=0 mislabel and zero node budget gap; agent independently reviewed final status semantics, no blocker."
 }

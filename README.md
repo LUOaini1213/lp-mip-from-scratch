@@ -37,7 +37,7 @@ claim and the number that killed it are in the repo.
 
 ```bash
 pip install -r requirements.txt
-python -m unittest discover -s tests -v   # 36 个测试（29 个原有 + 7 个预算/状态回归）
+python -m unittest discover -s tests -v   # 41 个测试（29 个原有 + 12 个预算/状态回归）
 python bench/bench_all.py                 # 五组测量 -> results/bench.json
 python bench/bench_all.py --check         # 与已提交结果比对
 python bench/bench_vsp.py                 # 车辆调度 -> results/vsp.json
@@ -61,6 +61,8 @@ r = bb.solve(m, cuts=True)  # 根节点加 Gomory 分数割
 重启后仍耗尽也一样。B&B 遇到 `iteration_limit` 或历史 `cycling` 状态时
 返回 `lp_limit`，保留已找到的 incumbent，但不宣称全局最优，gap 为未知。
 调用方应检查 `status` 后再使用解；预算未完成不代表模型不可行。
+无界 LP 松弛返回 `lp_unbounded`，不能据此证明整数模型不可行或存在整数无界射线。
+节点预算耗尽及其他没有已证最优解的返回值也没有有限 gap；这些状态不再填写 0。
 这项修复没有改动既有 benchmark / VSP 结果，
 验收见 [budget-status-checks.json](docs/budget-status-checks.json)。
 
