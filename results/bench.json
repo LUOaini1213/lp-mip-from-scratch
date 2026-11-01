@@ -332,75 +332,83 @@
   "rows": [
    {
     "case": "klee_minty_3",
-    "mine_seconds": 0.000174,
-    "highs_seconds": 0.000761,
-    "speed_ratio": 0.2
+    "mine_seconds": 0.000116,
+    "highs_seconds": 0.000462,
+    "speed_ratio": 0.3
    },
    {
     "case": "klee_minty_4",
-    "mine_seconds": 0.000278,
-    "highs_seconds": 0.000692,
-    "speed_ratio": 0.4
+    "mine_seconds": 0.000221,
+    "highs_seconds": 0.00045,
+    "speed_ratio": 0.5
    },
    {
     "case": "klee_minty_5",
-    "mine_seconds": 0.000521,
-    "highs_seconds": 0.000672,
-    "speed_ratio": 0.8
+    "mine_seconds": 0.00046,
+    "highs_seconds": 0.000454,
+    "speed_ratio": 1.0
    },
    {
     "case": "klee_minty_6",
-    "mine_seconds": 0.001116,
-    "highs_seconds": 0.00075,
-    "speed_ratio": 1.5
+    "mine_seconds": 0.001025,
+    "highs_seconds": 0.000471,
+    "speed_ratio": 2.2
    },
    {
     "case": "knapsack_10",
-    "mine_seconds": 0.007483,
-    "highs_seconds": 0.001382,
-    "speed_ratio": 5.4
+    "mine_seconds": 0.007329,
+    "highs_seconds": 0.000667,
+    "speed_ratio": 11.0
    },
    {
     "case": "knapsack_12",
-    "mine_seconds": 0.011129,
-    "highs_seconds": 0.001209,
-    "speed_ratio": 9.2
+    "mine_seconds": 0.010797,
+    "highs_seconds": 0.000687,
+    "speed_ratio": 15.7
    },
    {
     "case": "knapsack_14",
-    "mine_seconds": 0.015709,
-    "highs_seconds": 0.002152,
-    "speed_ratio": 7.3
+    "mine_seconds": 0.015527,
+    "highs_seconds": 0.001045,
+    "speed_ratio": 14.9
    },
    {
     "case": "dense_lp_20x30",
-    "mine_seconds": 0.009419,
-    "highs_seconds": 0.001354,
-    "speed_ratio": 7.0,
+    "mine_seconds": 0.009798,
+    "highs_seconds": 0.000923,
+    "speed_ratio": 10.6,
     "agrees_with_highs": true
    },
    {
     "case": "dense_lp_40x60",
-    "mine_seconds": 0.09237,
-    "highs_seconds": 0.002246,
-    "speed_ratio": 41.1,
+    "mine_seconds": 0.037182,
+    "highs_seconds": 0.001475,
+    "speed_ratio": 25.2,
     "agrees_with_highs": true
    },
    {
     "case": "dense_lp_60x90",
-    "mine_seconds": 0.105065,
-    "highs_seconds": 0.003957,
-    "speed_ratio": 26.6,
+    "mine_seconds": 0.101529,
+    "highs_seconds": 0.003023,
+    "speed_ratio": 33.6,
     "agrees_with_highs": true
    },
    {
     "case": "dense_lp_80x120",
-    "mine_seconds": 0.214742,
-    "highs_seconds": 0.006406,
-    "speed_ratio": 33.5,
+    "mine_seconds": 0.219513,
+    "highs_seconds": 0.005051,
+    "speed_ratio": 43.5,
     "agrees_with_highs": true
    }
   ],
-  "note": "**「比 HiGHS 慢」这句话在小实例上不成立**——背包和 Klee–Minty 这种规模上，HiGHS 的固定开销盖过求解本身，我的实现有时反而更快。要看真实差距得把规模拉起来：随机稠密 LP 上差距随规模迅速拉开。写这个仓是为了把方法搞明白，**不是造一个该上生产的求解器**——生产上该用 HiGHS/Gurobi。"
+  "repeats": 5,
+  "env": {
+   "os": "Windows 10",
+   "cpu": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+   "python": "3.11.5",
+   "numpy": "1.24.3",
+   "blas": "mkl_rt"
+  },
+  "note": "每格取 5 次里最快的一次。**「比 HiGHS 慢」这句话在小实例上不成立**——背包和 Klee–Minty 这种规模上，HiGHS 的固定开销盖过求解本身，我的实现有时反而更快。要看真实差距得把规模拉起来：稠密 LP 上差距到几十倍量级。**这一组是全仓唯一一组机器相关的数字**，`--check` 不比对它（见 EXEMPT_SUFFIX），换台机器重跑必然是另一组秒数。写这个仓是为了把方法搞明白，**不是造一个该上生产的求解器**——生产上该用 HiGHS/Gurobi。"
  }
 }

@@ -14,7 +14,9 @@ raise the bound and still make the tree *bigger*. **Two**: I wrote down the conc
 and it was **false** — 12 configurations and 1500 random multi-depot instances all had an
 integral relaxation. The thing that actually makes MDVSP hard is *depot eligibility*, and
 even then only 6 of 6000 random instances have a fractional relaxation. Both the wrong
-claim and the number that killed it are in the repo.
+claim and the numbers that killed it are in the repo, and both searches are re-run from
+scratch on every push (`--hunt 6000` and `--hunt-baseline 1500`), so those two sample
+sizes are CI output rather than prose.
 
 自己写的 LP / MIP 建模层 + 单纯形法 + 分支定界 + **真的 Gomory 分数割**，
 每个答案都拿 HiGHS 对过，割则**按定义**枚举全部 2ⁿ 个整数点验有效性。
@@ -36,12 +38,19 @@ claim and the number that killed it are in the repo.
 ## 30 秒跑通
 
 ```bash
+# 需要 Python 3.10 或 3.11。requirements 把 numpy 钉在 1.24.3，而它没有 cp312 的
+# wheel，3.12 上 pip 会转去源码构建并失败——首次推送时 CI 正是在这里红的。
+# 为什么宁可放弃 3.12 也要钉版本，见文末「诚实边界」第 6 条。
+# 可选：先 python -m venv .venv 建个虚拟环境并激活，省得污染系统环境。
 pip install -r requirements.txt
-python -m unittest discover -s tests -v   # 41 个测试（29 个原有 + 12 个预算/状态回归）
-python bench/bench_all.py                 # 五组测量 -> results/bench.json
-python bench/bench_all.py --check         # 与已提交结果比对
-python bench/bench_vsp.py                 # 车辆调度 -> results/vsp.json
-python bench/bench_vsp.py --hunt 6000     # 重跑那次随机搜索（约 8 分钟，不进 CI）
+
+python -m unittest discover -s tests -v        # 44 个测试（32 个原有 + 12 个预算/状态回归）
+python bench/bench_all.py                      # 五组测量 -> results/bench.json
+                                               #（顺带重新生成下面第 5 条那张速度表）
+python bench/bench_all.py --check              # 与已提交结果比对
+python bench/bench_vsp.py                      # 车辆调度 -> results/vsp.json
+python bench/bench_vsp.py --hunt 6000          # 重搜那 6 个反例（本机约 1 分钟）
+python bench/bench_vsp.py --hunt-baseline 1500 # 重跑对照组（本机约 40 秒）
 ```
 
 ```python
@@ -138,20 +147,51 @@ Klee–Minty 立方体上，Dantzig 规则要走遍 2ⁿ−1 个顶点：
 
 我原本打算写"我的实现慢几个数量级"。测出来不是：
 
+<!-- speed-table:begin 由 bench/bench_all.py 生成，勿手改 -->
+
 | 实例 | 我 | HiGHS | 比值 |
 |---|---|---|---|
-| klee_minty_3 | 0.0002 s | 0.0010 s | **0.2**（我更快） |
-| klee_minty_6 | 0.0011 s | 0.0008 s | 1.4 |
-| knapsack_14 | 0.0164 s | 0.0021 s | 7.9 |
-| dense_lp_20×30 | 0.0102 s | 0.0018 s | 5.6 |
-| dense_lp_40×60 | 0.0386 s | 0.0029 s | 13.5 |
-| dense_lp_60×90 | 0.1122 s | 0.0047 s | 23.9 |
-| dense_lp_80×120 | 0.2214 s | 0.0069 s | **32.1** |
+| klee_minty_3 | 0.0001 s | 0.0005 s | **0.3**（我更快） |
+| klee_minty_4 | 0.0002 s | 0.0004 s | **0.5**（我更快） |
+| klee_minty_5 | 0.0005 s | 0.0005 s | 1.0 |
+| klee_minty_6 | 0.0010 s | 0.0005 s | 2.2 |
+| knapsack_10 | 0.0073 s | 0.0007 s | 11.0 |
+| knapsack_12 | 0.0108 s | 0.0007 s | 15.7 |
+| knapsack_14 | 0.0155 s | 0.0010 s | 14.9 |
+| dense_lp_20x30 | 0.0098 s | 0.0009 s | 10.6 |
+| dense_lp_40x60 | 0.0372 s | 0.0015 s | 25.2 |
+| dense_lp_60x90 | 0.1015 s | 0.0030 s | 33.6 |
+| dense_lp_80x120 | 0.2195 s | 0.0051 s | **43.5** |
 
-**在教科书规模上，HiGHS 的固定开销盖过求解本身，我的实现甚至更快**——
-拿那种实例说"我的求解器不慢"是自欺欺人。规模拉到 80×120，差距才显出来（32 倍），
-而且随规模持续拉开。`test_the_speed_claim_is_stated_honestly` 把这两头都写成了断言，
-防止 README 只挑一头讲。
+> 每格取 5 次里最快的一次（噪声只会让一次测量变慢，不会变快）。测量环境：Windows 10 ／ Intel64 Family 6 Model 140 Stepping 1, GenuineIntel ／ Python 3.11.5 ／ numpy 1.24.3（BLAS: mkl_rt）。
+>
+> **这是全仓唯一一组机器相关的数字**，换台机器重跑必然是另一组秒数，所以 `--check` 不比对秒数本身；它比对的是**这张表与 `results/bench.json` 一致**。
+<!-- speed-table:end -->
+
+**在最小的那几档上，HiGHS 的固定开销盖过求解本身，我的实现甚至更快**——
+拿那种实例说"我的求解器不慢"是自欺欺人。规模一拉起来就拉开了：
+连 14 个 0/1 变量的背包都已经拉开，稠密 LP 上到几十倍量级。
+
+**这张表只说得到"几十倍"这个精度，别的都别读出来。** 秒数是机器相关的量：
+`--check` 把 `seconds` / `speed_ratio` 整块豁免（`bench_all.py` 的 `EXEMPT_SUFFIX`），
+换台机器重跑必然是另一组数。这个豁免曾经真的漏过东西：第一版的表是手打的，
+`results/bench.json` 后来被重算过、表却没跟着改，而 `--check` 照样绿。
+现在这张表由 `bench/bench_all.py` 从同一份 JSON **渲染**出来，
+`--check` 会把 README 里的这一段和渲染结果逐字比对，
+`test_the_readme_speed_table_matches_the_committed_bench` 再验一遍——
+故意把表里任何一个数字改错一位，两者都会红。
+
+跨机器还站得住的是序，不是秒数：最小的那档 LP 上我更快（比值 < 1），
+稠密 LP 拉到 80×120 我慢一个数量级以上，而且比值随规模显著变大。
+`test_the_speed_ordering_holds_on_a_fresh_run` 对**新跑**结果断言这三条（阈值留得比
+本机实测宽，共享 runner 上 HiGHS 的固定开销占比会变），
+`test_the_speed_claim_is_stated_honestly` 继续钉住冻结值，防止 README 只挑一头讲。
+
+顺带一个教训：这张表原先每格只测一次，`dense_lp_40x60` 曾被测成 0.0924 s，
+把比值推到 41 倍，而前后两次提交里同一个实例的耗时都落在 0.037–0.039 s。
+实例是 `default_rng(7)` 确定性生成的、算法一行没改，迭代次数不可能变——
+那一格只能是测量被干扰了，不是什么"形状效应"。现在每格取 5 次里最快的一次：
+噪声只会让一次测量变慢、不会变快，所以 min 比 mean 更接近"这台机器上真正要花多久"。
 
 ### 6. 割平面是真的，但**不是免费的**
 
@@ -189,7 +229,13 @@ MDVSP 是 NP 难的，所以松弛该出分数解、该分支。**然后我去�
 | 两场站 + 车辆成本压到 40 n=8 | 98 | 237.00 | **0** | 1 | 是 |
 
 n=6 的六档同样全是 0。再随机撒 **1500 个**多场站实例（n=4..8，2~3 场站，随机成本），
-**依然 0 个出分数松弛**。
+**依然 0 个出分数松弛，也 0 个有界间隙**（线性松弛的最优值都等于整数最优值）。
+
+这 1500 个是**对照组**：`bench/bench_vsp.py --hunt-baseline 1500` 与下面那个
+`--hunt 6000` 跑的是**同一批实例**，逐位相同的时刻表、场站、空驶表、车辆成本，
+唯一的差别是这一组不加场站准入限制（`eligible=None`）。所以"难的是准入不是场站数"
+这句话是被对照出来的，不是猜出来的。两组 CI 每次推送都重跑，
+数字落在 `results/vsp.json` 的 `baseline_hunt` 与 `hunt` 两块。
 
 **错在哪：NP 难是关于最坏实例的陈述，不是关于随机实例的承诺。**
 "矩阵不再全幺模"只说明整数性不再被*保证*，不等于分数解会*出现*。
@@ -282,7 +328,9 @@ ValueError: Gomory 分数割不适用于该模型：存在连续变量 ['x0', 'x
 | MIP 最优值 | `scipy.optimize.milp`（HiGHS 的分支定界） |
 | **割的有效性** | **枚举全部 2ⁿ 个整数点，按定义验"没切掉可行点"** |
 | 归约到标准型 | 四件事各有独立测试，外加"自由变量带上界"这个易错组合 |
-| 已提交的 results | `--check` 与新跑逐字段比对，不是只读旧值 |
+| 已提交的 results | `--check` 重跑一遍再逐字段比对，不是只读旧值；**计时字段整块豁免**（机器相关），改由下一行兜住 |
+| 计时表不过期 | README 的速度表由 `bench_all.py` 从 `results/bench.json` 渲染，`--check` 与一条测试各比对一次 |
+| 6/6000 与 1500/0 | CI 每次推送把两次随机搜索**整个重跑**（`--hunt 6000`、`--hunt-baseline 1500`），不是读冻结值 |
 | **模型构造可复现** | 换三个 `PYTHONHASHSEED` 起子进程，**弧表与实例字段必须逐位相同** |
 | lpmip/ 不依赖 SciPy | CI 里卸掉 SciPy 再跑一遍，免得"自己实现"悄悄靠在参照求解器上 |
 
@@ -330,8 +378,8 @@ ubuntu 那次正好落在了它上面。所以：
 | 列生成 / 集合划分 | 读了，**没实现**，见「诚实边界」 |
 
 需要说清的一点：**文献里我没有找到一句可直接引用的"MDVSP 松弛通常整数"**，
-所以 README 里那张表的依据是**本仓自己跑出来的 12 档 + 1500 个随机实例**，
-不是转述别人的结论。找不到的东西就说找不到。
+所以 README 里那张表的依据是**本仓自己跑出来的 12 档 + 1500 个对照实例**
+（`--hunt-baseline 1500`，CI 每次重算），不是转述别人的结论。找不到的东西就说找不到。
 
 - [A time–space network based exact optimization model for multi-depot bus scheduling (Kliewer et al., EJOR 2006)](https://www.sciencedirect.com/science/article/abs/pii/S0377221705002274)
 - [Solving a Large-Scale Multi-Depot Vehicle Scheduling Problem in Urban Bus Systems (2018)](https://onlinelibrary.wiley.com/doi/10.1155/2018/4868906)
@@ -363,9 +411,9 @@ lpmip/cuts.py          Gomory 分数割：推导、有效性闸门、松弛变�
 problems/transit.py    班车最小车队：指派型 vs big-M 型
 problems/classic.py    Beale 循环、Klee–Minty、背包、配料、固定成本生产
 problems/vsp.py        时空网络 VSP / MDVSP，以及那条被推翻的结论
-bench/bench_all.py     五组测量（含割），--check 比对已提交结果
-bench/bench_vsp.py     车辆调度阶梯 + 6 个冻结反例，--hunt N 重跑随机搜索
-tests/test_all.py      29 个测试，全部对着 HiGHS 或按定义验
+bench/bench_all.py     五组测量（含割），--check 比对已提交结果并核对 README 的速度表
+bench/bench_vsp.py     车辆调度阶梯 + 6 个冻结反例，--hunt N / --hunt-baseline N 重跑两次搜索
+tests/test_all.py      32 个测试，全部对着 HiGHS 或按定义验
 ```
 
 ---
@@ -380,12 +428,13 @@ tests/test_all.py      29 个测试，全部对着 HiGHS 或按定义验
 4. **数值稳定性没做认真处理**：容差是固定的 1e-9，没有比例化、没有 Harris 比值检验。
 5. **列生成没实现。** 查资料时读了集合划分 + 列生成的做法，也知道那才是解大规模
    MDVSP 的主流路线，但本仓没写。**读过不等于做过。**
-6. **CI 只覆盖 Python 3.10 与 3.11。** `requirements.txt` 把 numpy 钉在 1.24.3
-   以保证 `--check` 在 CI 上逐位复现，而那个版本没有 cp312 的 wheel——首次推送时
-   CI 正是在 3.12 上红的。放宽版本就能上 3.12，但逐位复现就没了保证；两者只能选一个。
-7. **`--hunt 6000` 那一跑没进 CI**（约 8 分钟）。结果以 `FRACTIONAL_SEEDS` 的形式冻结，
-   CI 只验这 6 个种子仍然出分数松弛，**不重跑搜索**。所以"6/6000"这个比率
-   是本机跑的，不是每次 CI 都复算的。
+6. **CI 只覆盖 Python 3.10 与 3.11。** `requirements.txt` 把 numpy 钉在 1.24.3，
+   是为了让 `--check` 比对的那些字段（计数、状态、界值）在 CI 上稳定复现，
+   而那个版本没有 cp312 的 wheel——首次推送时 CI 正是在 3.12 上红的。
+   放宽版本就能上 3.12，但那些字段的稳定复现就没了保证；两者只能选一个。
+   **注意这句话不覆盖计时**：秒数从来就不跨机器复现，`--check` 也不比对它。
+7. **计时是全仓唯一一组机器相关的数字。** 第 5 条那张表只在生成它的那台机器上成立
+   （表下面写了是哪台）。跨机器成立的是它的序，不是它的秒数。
 8. 一句话：**可以说**「自己实现了 LP/MIP 的建模、单纯形、分支定界与 Gomory 分数割，
    并用 HiGHS 逐实例验证，还测出并推翻了自己写下的一条结论」；
    **不可以说**「写了一个可用的求解器」。

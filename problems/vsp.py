@@ -28,7 +28,10 @@
 
   * 只把场站从 1 个加到 2、3 个 —— 换非对称空驶表、换车辆成本量级、加场站容量上限，
     **松弛全部整数、全部一个节点解完、全部与 HiGHS 一致**。
-  * 再随机撒 1500 个多场站实例（n=4..8，2~3 个场站，随机成本），**0 个出分数松弛**。
+  * 再随机撒 1500 个多场站实例（n=4..8，2~3 个场站，随机成本），**0 个出分数松弛**，
+    而且 **0 个有界间隙**（线性松弛的最优值都等于整数最优值）。这一组是
+    `bench/bench_vsp.py --hunt-baseline 1500` 跑出来的，冻结在 `BASELINE_TRIED` /
+    `BASELINE_FRACTIONAL_SEEDS`，CI 每次推送都重算一遍。
 
 错在哪：**NP 难是关于最坏实例的陈述，不是关于随机实例的承诺。**
 "矩阵不再全幺模"只说明"整数性不再被保证"，不等于"分数解会出现"。
@@ -80,6 +83,12 @@ DEADHEAD_COST = 1.0          # 每分钟空驶的成本
 # `tests/test_all.py::MultiDepot` 会立刻发现。
 FRACTIONAL_SEEDS = (17, 670, 3845, 4189, 4764, 5948)
 HUNT_TRIED = 6000
+
+# **对照组**：同一批随机实例，只把场站准入限制摘掉（`eligible=None`，即每个场站都能
+# 跑每个班次）。这一组才是"只加场站不产生分数松弛"那句话的样本量。
+# `bench/bench_vsp.py --hunt-baseline 1500` 重跑它，CI 每次都跑。
+BASELINE_TRIED = 1500
+BASELINE_FRACTIONAL_SEEDS = ()      # 一个都没有——这正是那条结论被推翻的地方
 
 
 @dataclass(frozen=True)
@@ -191,8 +200,9 @@ def model_multi_depot(trips: list[Trip], depots: list[str], layover: float = 5.0
     每条弧按场站复制一份（商品 = 场站），班次弧要求"所有场站的流量合计 = 1"。
 
     `eligible`: `{trip_id: {可以承担这个班次的场站}}`。**这一条才是难度的真来源**——
-    不给它的话（默认全部场站都能跑全部班次），1500 个随机实例里 0 个出分数松弛；
-    给了之后 6000 个里出 6 个。见模块 docstring。
+    不给它的话（默认全部场站都能跑全部班次），1500 个随机实例里 0 个出分数松弛
+    （`--hunt-baseline 1500`）；给了之后 6000 个里出 6 个（`--hunt 6000`）。
+    见模块 docstring。
     """
     nodes, arcs = build_network(trips, depots, layover, dh_table, vehicle_cost)
     m = Model("vsp_multi", sense="min")
@@ -265,11 +275,17 @@ def random_instance(seed: int) -> dict:
             "vehicle_cost": vehicle_cost, "n": n, "trip_seed": trip_seed}
 
 
-def model_from_random(seed: int) -> Model:
-    """把 `random_instance(seed)` 直接建成模型。"""
+def model_from_random(seed: int, with_eligibility: bool = True) -> Model:
+    """把 `random_instance(seed)` 直接建成模型。
+
+    `with_eligibility=False` 建的是**对照组**：同一个实例（时刻表、场站、空驶表、
+    车辆成本逐位相同，因为 `random_instance` 照样把准入抽出来、只是不用），
+    唯独不加场站准入限制。两组只差这一条约束，所以"难的是准入不是场站数"
+    这句话才是被对照出来的，不是猜出来的。
+    """
     ins = random_instance(seed)
     return model_multi_depot(ins["trips"], ins["depots"], dh_table=ins["dh"],
-                             eligible=ins["eligible"],
+                             eligible=ins["eligible"] if with_eligibility else None,
                              vehicle_cost=ins["vehicle_cost"])
 
 

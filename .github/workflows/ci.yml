@@ -15,7 +15,8 @@ jobs:
       matrix:
         # 只到 3.11：requirements 把 numpy 钉在 1.24.3，而它没有 cp312 的 wheel，
         # 3.12 上 pip 会转去源码构建并失败。**这是钉版本的代价**——为了让
-        # `--check` 在 CI 上逐位复现而钉死，就得放弃 Python 版本的广度。
+        # `--check` 比对的那些字段（计数、状态、界值）在 CI 上稳定复现而钉死，
+        # 就得放弃 Python 版本的广度。
         # 首次推送时 CI 正是在这里红的，改法记在 README「诚实边界」第 6 条。
         python-version: ["3.10", "3.11"]
     steps:
@@ -30,8 +31,16 @@ jobs:
       - name: Committed benchmark still holds
         run: python bench/bench_all.py --check
       - name: Committed vehicle-scheduling results still hold
-        # 不跑 --hunt（6000 个实例约 8 分钟）；只验冻结的 6 个种子仍然出分数松弛。
         run: python bench/bench_vsp.py --check
+      - name: Re-run the random search that found the 6 counterexamples
+        # 6000 个实例，本机约 1 分钟。冻结的 6 个种子不是"曾经跑出来过"，
+        # 是每次推送都重新搜一遍——命中集合必须**恰好**是 FRACTIONAL_SEEDS，
+        # 多一个少一个都红。
+        run: python bench/bench_vsp.py --hunt 6000
+      - name: Re-run the no-eligibility control group (the 1500 in the abstract)
+        # 英文摘要里那个 1500 就是这一步算出来的：同一批实例、去掉场站准入限制，
+        # 1500 个里 0 个出分数松弛、0 个有界间隙。本机约 40 秒。
+        run: python bench/bench_vsp.py --hunt-baseline 1500
       - name: The solver core needs no SciPy
         # lpmip/ 只依赖 NumPy；SciPy 只用于交叉验证。卸掉它验一次，
         # 免得"自己实现"这句话悄悄靠在参照求解器上。
