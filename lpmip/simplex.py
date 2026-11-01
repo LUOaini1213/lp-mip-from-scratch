@@ -22,7 +22,7 @@ EPS = 1e-9
 
 @dataclass
 class LPResult:
-    status: str                 # optimal / infeasible / unbounded / cycling
+    status: str                 # optimal / infeasible / unbounded / cycling / iteration_limit
     x: np.ndarray | None
     obj: float
     iterations: int
@@ -111,8 +111,13 @@ def solve_standard(A: np.ndarray, b: np.ndarray, c: np.ndarray,
 
     status, it1 = _run(T, basis, rule, max_iter)
     restarted = False
-    if status == "iteration_limit" and auto_bland and rule != "bland":
-        return _restart_bland(A, b, c, max_iter)
+    if status == "iteration_limit":
+        if auto_bland and rule != "bland":
+            return _restart_bland(A, b, c, max_iter)
+        # A positive artificial objective proves infeasibility only at a
+        # converged phase-I optimum. Budget exhaustion is no such certificate.
+        return LPResult("iteration_limit", None, np.nan, it1, rule, False,
+                        "phase I did not converge within %d iterations (%s)" % (max_iter, rule))
     if -T[-1, -1] > 1e-7:
         return LPResult("infeasible", None, np.inf, it1, rule, False,
                         "第一阶段目标 %.3g > 0" % (-T[-1, -1]))
@@ -157,7 +162,7 @@ def solve_standard(A: np.ndarray, b: np.ndarray, c: np.ndarray,
 def _restart_bland(A, b, c, max_iter) -> LPResult:
     r = solve_standard(A, b, c, rule="bland", max_iter=max_iter, auto_bland=False)
     r.restarted_with_bland = True
-    r.message = "Dantzig 规则撞上迭代上限，自动重启为 Bland 规则"
+    r.message = "Dantzig 规则撞上迭代上限，自动重启为 Bland 规则" + (": " + r.message if r.message else "")
     return r
 
 

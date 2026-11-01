@@ -44,7 +44,7 @@ sizes are CI output rather than prose.
 # 可选：先 python -m venv .venv 建个虚拟环境并激活，省得污染系统环境。
 pip install -r requirements.txt
 
-python -m unittest discover -s tests -v        # 32 个测试
+python -m unittest discover -s tests -v        # 44 个测试（32 个原有 + 12 个预算/状态回归）
 python bench/bench_all.py                      # 五组测量 -> results/bench.json
                                                #（顺带重新生成下面第 5 条那张速度表）
 python bench/bench_all.py --check              # 与已提交结果比对
@@ -64,6 +64,16 @@ m.set_objective(5*x[0] + 4*x[1] + 3*x[2])
 r = bb.solve(m)             # -> status='optimal', obj=9.0, nodes=5
 r = bb.solve(m, cuts=True)  # 根节点加 Gomory 分数割
 ```
+
+**2026-10-12：有限预算的状态边界。** 单纯形第一阶段耗尽迭代预算时返回
+`iteration_limit`，不会把尚未收敛的人工目标当作不可行证书；自动 Bland
+重启后仍耗尽也一样。B&B 遇到 `iteration_limit` 或历史 `cycling` 状态时
+返回 `lp_limit`，保留已找到的 incumbent，但不宣称全局最优，gap 为未知。
+调用方应检查 `status` 后再使用解；预算未完成不代表模型不可行。
+无界 LP 松弛返回 `lp_unbounded`，不能据此证明整数模型不可行或存在整数无界射线。
+节点预算耗尽及其他没有已证最优解的返回值也没有有限 gap；这些状态不再填写 0。
+这项修复没有改动既有 benchmark / VSP 结果，
+验收见 [budget-status-checks.json](docs/budget-status-checks.json)。
 
 ---
 
