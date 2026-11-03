@@ -1,12 +1,8 @@
-# **需要 Python 3.10 或 3.11**（见下），装之前先确认 `python --version`。
-#
-# 版本钉死：HiGHS 是本仓唯一的独立参照，换版本可能改变数值末位与状态码，
-# 而 bench/bench_all.py --check 要在 CI 上复现。
-#
-# **代价**：numpy 1.24.3 没有 Python 3.12 的 wheel，所以 CI 矩阵只到 3.11。
-# 首次推送时 CI 就是在 3.12 上红的（pip 转源码构建 numpy 失败）。
-# 想支持 3.12 就得放宽 numpy，那样 --check 比对的那些字段就不再保证稳定复现——
-# （注意 --check 从来不比对计时：秒数是机器相关的量，钉版本也救不了）
-# 这两者之间只能选一个，这里选了可复现。
+# Python 3.10 or 3.11 (numpy 1.24.3 has no cp312 wheel).
+# Pinned so that the fields `bench/bench_all.py --check` and
+# `bench/bench_vsp.py --check` compare reproduce exactly in CI.
+# Keep this file ASCII-only: pip < 23.3 reads it with the locale codec
+# (GBK on Chinese Windows) and fails on non-ASCII comments.
+# Why the pin and what it costs: README, "Honest limits" item 6.
 numpy==1.24.3
 scipy==1.11.1

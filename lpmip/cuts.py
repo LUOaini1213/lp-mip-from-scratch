@@ -182,7 +182,7 @@ def tighten(model: Model, rounds: int = 3, max_cuts_per_round: int = 5,
             # **相对阈值，不是 1e-9 绝对阈值。** 保留与否是个离散决定：
             # 若某条割只把界抬高 1e-9 量级，那么换一台机器（BLAS 不同、最后几位有出入）
             # 就可能保留/丢弃不同的割，`cuts_added` 与节点数随之漂移，
-            # 提交进 results/ 的数字就复现不了。eda-copilot 正是栽在这类地方。
+            # 提交进 results/ 的数字就复现不了。
             need = KEEP_TOL * max(1.0, abs(r.obj))
             improves = (t.obj > r.obj + need) if cur.sense == "min" else (t.obj < r.obj - need)
             if improves:

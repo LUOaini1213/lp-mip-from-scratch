@@ -2,7 +2,8 @@
 """建模层：一个够用的代数建模接口，外加到标准型的归约。
 
 写这一层不是为了跟 PuLP 比功能，是因为**"建模"这件事本身有内容**：
-同一个问题写成不同的模型，求解难度能差几个数量级（见 bench/bench_formulations.py），
+同一个问题写成不同的模型，节点数能差一个数量级（见 `bench/bench_all.py` 的 `bench_formulations()`：
+指派型 1 个节点，big-M 型 21–31 个），
 而这个差别只有在你自己掌管从模型到矩阵那一步时才看得清。
 
 对外是 `Var / LinExpr / Constraint / Model`；对内 `Model.to_standard_form()`
