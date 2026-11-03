@@ -5,8 +5,8 @@
 
 **为什么要写两种主元规则**：Dantzig 规则（选最负的检验数）是教科书默认，跑得快，
 但**会循环**——在退化顶点上原地打转永不终止。Bland 规则（进基与离基都取最小下标）
-可证明有限终止，代价是通常多迭代几步。这不是纸上谈兵：`problems/cycling.py` 里的
-Beale 例子在 Dantzig 规则下真的会转圈，`bench/bench_pivot.py` 把两者摆在一起。
+可证明有限终止，代价是通常多迭代几步。这不是纸上谈兵：`problems/classic.py` 里的
+Beale 例子在 Dantzig 规则下真的会转圈，`bench/bench_all.py` 的 `bench_pivot()` 把两者摆在一起。
 
 默认用 Dantzig + 迭代上限，撞上限就自动重启为 Bland——生产求解器也大多这么做
 （先快后稳），而不是一上来就用最慢但最稳的那个。

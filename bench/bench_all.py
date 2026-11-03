@@ -305,7 +305,7 @@ def sync_readme_table(cost: dict) -> bool:
     new = text[:i] + fresh + text[j + len(README_TABLE_END):]
     if new == text:
         return False
-    path.write_text(new, encoding="utf-8")
+    path.write_text(new, encoding="utf-8", newline="\n")
     return True
 
 
@@ -479,7 +479,7 @@ def main() -> int:
             return 1
         print("ok: results 与新跑一致（计时豁免），README 速度表与已提交结果一致")
         return 0
-    out.write_text(json.dumps(fresh, ensure_ascii=False, indent=1), encoding="utf-8")
+    out.write_text(json.dumps(fresh, ensure_ascii=False, indent=1), encoding="utf-8", newline="\n")
     print("wrote", out)
     if sync_readme_table(fresh["cost"]):
         print("updated README.md 速度表（这台机器的秒数）")
