@@ -68,7 +68,7 @@ jobs:
           m.set_objective(5*x[0] + 4*x[1] + 3*x[2])
           r = bb.solve(m)
           assert r.status == 'optimal' and abs(r.obj - 9.0) < 1e-9, r
-          print('ok: 无 SciPy 也能求解', r.obj)
+          print('ok: solved without SciPy', r.obj)  # ASCII: Windows runner stdout is cp1252
           "
 
   unpinned:
