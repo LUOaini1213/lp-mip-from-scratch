@@ -128,13 +128,19 @@ def bench_frozen_counterexamples() -> dict:
 
 
 def hunt(n_seeds: int, with_eligibility: bool = True,
-         check_gap: bool = False) -> dict:
+         check_gap: str | None = None) -> dict:
     """重跑随机搜索。带准入限制的一组 6000 个实例，本机约 1 分钟。
 
     `with_eligibility=False` 跑**对照组**（同一批实例、不加场站准入限制）。
-    `check_gap=True` 额外对每个实例解一次 MIP，记下"线性松弛界 != 整数最优"的种子——
-    分数变量个数是（模型 + 列序 + 主元规则）三者的性质，界间隙则只是模型的性质，
-    后者是这两组里唯一跨机器一定成立的量。
+
+    「命中」= 我们的单纯形（Dantzig，固定列序）返回的**那个最优顶点**含分数分量。
+    这是（模型 + 列序 + 主元规则）三者的性质，不是实例单独的性质（seed=670 就是
+    分数顶点、零界间隙）。只属于实例的量是界间隙，所以：
+
+      check_gap="all"   对每个实例解一次 MIP，记下"线性松弛界 != 整数最优"的种子
+                        （对照组用这个，独立于上面那条推理再验一遍）；
+      check_gap="hits"  只对命中的实例解 MIP。没命中的实例，松弛顶点本身就是可行整数解，
+                        界间隙必然为 0，不用再解（带准入的 6000 个用这个，多花约 6 次 MIP）。
     """
     hits, gap_seeds, tried = [], [], 0
     for seed in range(1, n_seeds + 1):
@@ -146,10 +152,11 @@ def hunt(n_seeds: int, with_eligibility: bool = True,
         r = solve_model(m)
         if r.status != "optimal":
             continue
-        if _n_fractional(r.x):
+        frac = bool(_n_fractional(r.x))
+        if frac:
             hits.append(seed)
             print("  命中 seed=%d" % seed, flush=True)
-        if check_gap:
+        if check_gap == "all" or (check_gap == "hits" and frac):
             mip = bb.solve(m, max_nodes=20000)
             if abs(mip.obj - r.obj) > 1e-6 * max(1.0, abs(mip.obj)):
                 gap_seeds.append(seed)
@@ -165,12 +172,15 @@ def hunt(n_seeds: int, with_eligibility: bool = True,
 
 def _run_hunt(n_seeds: int, with_eligibility: bool) -> int:
     """跑一次搜索并与冻结的种子表比对。返回进程退出码。"""
-    frozen = (vsp.FRACTIONAL_SEEDS if with_eligibility
-              else vsp.BASELINE_FRACTIONAL_SEEDS)
-    label = "带场站准入限制" if with_eligibility else "对照组（无场站准入限制）"
+    if with_eligibility:
+        frozen, frozen_gap = vsp.FRACTIONAL_SEEDS, vsp.FRACTIONAL_SEEDS_WITH_GAP
+        label = "带场站准入限制"
+    else:
+        frozen, frozen_gap = vsp.BASELINE_FRACTIONAL_SEEDS, ()
+        label = "对照组（无场站准入限制）"
     h = hunt(n_seeds, with_eligibility=with_eligibility,
-             check_gap=not with_eligibility)
-    print("%s：试 %d，命中 %d（%.4f%%）：%s"
+             check_gap="hits" if with_eligibility else "all")
+    print("%s：试 %d，分数顶点 %d（%.4f%%）：%s"
           % (label, h["tried"], h["n_hits"], h["hit_rate_pct"], h["hits"]))
     rc = 0
     # 只比对搜索范围内的种子：--hunt 300 不该因为没跑到 seed=3845 就算失败。
@@ -179,13 +189,14 @@ def _run_hunt(n_seeds: int, with_eligibility: bool) -> int:
     if got != expect:
         print("不一致：期望 %s，实得 %s" % (expect, got))
         rc = 1
-    if "n_with_gap" in h:
-        print("界间隙非零的实例：%d 个 %s" % (h["n_with_gap"], h["gap_seeds"]))
-        if h["gap_seeds"]:
-            print("不一致：对照组期望 0 个界间隙，实得 %s" % h["gap_seeds"])
-            rc = 1
+    print("界间隙 > 0 的实例：%d 个 %s" % (h["n_with_gap"], h["gap_seeds"]))
+    expect_gap = [s for s in frozen_gap if s <= n_seeds]
+    if h["gap_seeds"] != expect_gap:
+        print("不一致：界间隙 > 0 期望 %s，实得 %s" % (expect_gap, h["gap_seeds"]))
+        rc = 1
     if rc == 0:
-        print("ok: %s 的命中种子在 seed<=%d 范围内与冻结值完全一致" % (label, n_seeds))
+        print("ok: %s 的分数顶点与界间隙种子在 seed<=%d 范围内与冻结值完全一致"
+              % (label, n_seeds))
     return rc
 
 
@@ -206,16 +217,25 @@ def main() -> int:
             rc |= _run_hunt(args.hunt_baseline, with_eligibility=False)
         return rc
 
+    counterexamples = bench_frozen_counterexamples()
     fresh = {
         "ladder": bench_ladder(),
-        "counterexamples": bench_frozen_counterexamples(),
+        "counterexamples": counterexamples,
         "hunt": {"tried": vsp.HUNT_TRIED, "hits": list(vsp.FRACTIONAL_SEEDS),
                  "n_hits": len(vsp.FRACTIONAL_SEEDS),
                  "hit_rate_pct": round(100.0 * len(vsp.FRACTIONAL_SEEDS)
                                        / vsp.HUNT_TRIED, 4),
+                 # 由上面 counterexamples 的新跑结果算出，不是抄常量：
+                 # 6 个分数顶点里界间隙 > 0 的那些（其余实例的顶点已是整数解，间隙必为 0）。
+                 "gap_seeds": [int(r["case"].rsplit("seed", 1)[1])
+                               for r in counterexamples["rows"]
+                               if r["gap_pct"] > 1e-9],
                  "note": ("这一组不在默认路径上重跑（6000 个实例，本机约 1 分钟）。"
                           "用 `--hunt 6000` 复现；命中的种子必须恰好是 FRACTIONAL_SEEDS。"
-                          "**CI 每次推送都重算整整 6000 个**，命中集合必须恰好是这 6 个。")},
+                          "**CI 每次推送都重算整整 6000 个**，命中集合必须恰好是这 6 个。"
+                          "「命中」指本仓单纯形返回的那个最优顶点含分数分量；"
+                          "界间隙 > 0 的是 gap_seeds 里那 5 个（seed=670 顶点分数、界却是紧的），"
+                          "`--hunt 6000` 同样重验。")},
         "baseline_hunt": {"tried": vsp.BASELINE_TRIED,
                           "hits": list(vsp.BASELINE_FRACTIONAL_SEEDS),
                           "n_hits": len(vsp.BASELINE_FRACTIONAL_SEEDS),
@@ -244,7 +264,7 @@ def main() -> int:
             return 1
         print("ok: results/vsp.json 与新跑一致")
         return 0
-    out.write_text(json.dumps(fresh, ensure_ascii=False, indent=1), encoding="utf-8")
+    out.write_text(json.dumps(fresh, ensure_ascii=False, indent=1), encoding="utf-8", newline="\n")
     print("wrote", out)
     print("阶梯：%d 档，其中松弛出分数解的 %d 档"
           % (fresh["ladder"]["n_rows"], fresh["ladder"]["n_rows_with_fractional_lp"]))
@@ -256,4 +276,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # 输出含中文；英文 Windows 上被管道捕获时 stdout 是 cp1252，不改会 UnicodeEncodeError。
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     raise SystemExit(main())

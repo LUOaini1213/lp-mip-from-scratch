@@ -3,7 +3,7 @@
 
 `beale_cycling`  Beale 1955 的循环例子。Dantzig 规则（选最负检验数）在它上面
                  会在退化顶点之间原地打转、永不终止；Bland 规则可证明有限终止。
-                 这不是理论警告——`bench/bench_pivot.py` 跑出来就是这个结果。
+                 这不是理论警告——`bench/bench_all.py` 的 `bench_pivot()` 跑出来就是这个结果。
 `klee_minty`     Klee–Minty 立方体：Dantzig 规则要经过 2^n − 1 个顶点才到最优，
                  单纯形法最坏情况指数复杂度的标准反例。用来量"最坏情况有多坏"。
 `blending`       配料 LP，纯粹的正确性对照基线。

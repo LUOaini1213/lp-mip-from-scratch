@@ -16,9 +16,9 @@
 `model_bigM`（坏）
     给每辆车一个 0/1 的"用没用"变量，再用 big-M 把"同一辆车的班次不能时间重叠"
     写成大 M 约束。同一个最优值，但线性松弛松得多（M 越大越松），
-    分支定界要多探好几个数量级的节点。
+    分支定界要多探一个数量级的节点（bench 里 1 对 21–31）。
 
-**这就是"建模比换求解器重要"最干净的一个例子**，bench/bench_formulations.py 量了它。
+**这就是"建模比换求解器重要"最干净的一个例子**，`bench/bench_all.py` 的 `bench_formulations()` 量了它。
 """
 from __future__ import annotations
 

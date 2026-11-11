@@ -2,26 +2,42 @@
 
 [![ci](https://github.com/LUOaini1213/lp-mip-from-scratch/actions/workflows/ci.yml/badge.svg)](https://github.com/LUOaini1213/lp-mip-from-scratch/actions/workflows/ci.yml)
 
-**In one paragraph (EN)** — a linear- and mixed-integer-programming stack written from
-scratch: an algebraic modelling layer that reduces any LP to standard form, a two-phase
-tableau simplex with two pivot rules, branch-and-bound over the LP relaxation, and real
-Gomory fractional cuts. Every answer is cross-checked against HiGHS
-(`scipy.optimize.linprog` / `milp`), and the cuts are checked against their *definition*
-by enumerating all 2ⁿ integer points and asserting none was cut off. The two most useful
-results are both negative. **One**: cuts are not free — on one of four knapsacks they
-raise the bound and still make the tree *bigger*. **Two**: I wrote down the conclusion
-"adding a second depot changes the difficulty by an order of magnitude", then measured it
-and it was **false** — 12 configurations and 1500 random multi-depot instances all had an
-integral relaxation. The thing that actually makes MDVSP hard is *depot eligibility*, and
-even then only 6 of 6000 random instances have a fractional relaxation. Both the wrong
-claim and the numbers that killed it are in the repo, and both searches are re-run from
-scratch on every push (`--hunt 6000` and `--hunt-baseline 1500`), so those two sample
-sizes are CI output rather than prose.
+**Built:** an LP/MIP stack from scratch on NumPy (modelling layer, two-phase tableau simplex
+with Dantzig and Bland pivoting, branch-and-bound, pure-integer Gomory fractional cuts), every
+answer cross-checked against HiGHS via SciPy. **Found:** the formulation mattered more than any
+solver switch (1 node vs 21–31 for the same fleet problem); cuts closed 3 of 4 knapsacks at the
+root but grew the 4th tree (29 → 31 nodes); my own claim that a second depot makes bus scheduling
+far harder was false: 0 of 1500 random multi-depot instances had a bound gap, and even with depot
+eligibility only 5 of 6000 did. **Limits:** toy sizes (80×120 dense LP, 14-item knapsack, 8-trip
+MDVSP), dense tableau, no GMI cuts or column generation, 43.5× slower than HiGHS at 80×120 (one machine).
 
 自己写的 LP / MIP 建模层 + 单纯形法 + 分支定界 + **真的 Gomory 分数割**，
 每个答案都拿 HiGHS 对过，割则**按定义**枚举全部 2ⁿ 个整数点验有效性。
 **这个仓最值钱的两条结论都是负面的**：割不是免费的（四个背包里有一个越割越慢）；
 以及我写下的「多一个场站，难度就换一个量级」被自己的数据推翻了。
+
+### Findings at a glance (EN)
+
+Every number below is read from `results/bench.json` or `results/vsp.json` by
+`tests/test_readme_numbers.py`; editing one by hand turns CI red. The detailed write-up
+further down is in Chinese.
+
+| # | Finding | Number |
+|---|---|---|
+| 1 | Formulation beats solver tuning: same optimal fleet, assignment vs big-M model | 1 node vs 21–31 nodes |
+| 2 | Big-M set to each variable's own bound instead of an arbitrary large M | 5 nodes vs 19 |
+| 3 | Dantzig's rule really cycles on Beale's 1955 example; Bland's rule terminates | stopped at 203 iterations vs optimal in 9 |
+| 4 | Klee–Minty reproduces the simplex worst case exactly | 2ⁿ−1 iterations for n = 3..7 |
+| 5 | "Slower than HiGHS" is false on the smallest LP and true at size (one machine, see §5) | ratio 0.3 on klee_minty_3, 43.5× on dense 80×120 |
+| 6 | Gomory cuts help, but not always | 3 of 4 knapsacks solved at the root; knapsack_12 grows 29 → 31 nodes |
+| 7 | A second depot alone does not make MDVSP harder; depot eligibility does, rarely | 0 of 12 ladder configs and 0 of 1500 random instances with a bound gap; with eligibility, 6 of 6000 fractional LP vertices from this simplex, 5 of 6000 with a positive gap |
+
+**Main limits.** Instances are small, so nothing here extrapolates to industrial sizes.
+Only pure-integer Gomory cuts (a model with continuous variables is refused, not silently
+skipped). Dense tableau with fixed 1e-9 tolerances, no presolve, no column generation.
+Timings come from one Windows machine; `--check` compares counts, statuses and bounds,
+not seconds. "Fractional relaxation" in §7 means the vertex this simplex returns, which
+depends on column order and pivot rule; the bound gap is the property of the instance.
 
 ---
 
@@ -40,11 +56,12 @@ sizes are CI output rather than prose.
 ```bash
 # 需要 Python 3.10 或 3.11。requirements 把 numpy 钉在 1.24.3，而它没有 cp312 的
 # wheel，3.12 上 pip 会转去源码构建并失败——首次推送时 CI 正是在这里红的。
-# 为什么宁可放弃 3.12 也要钉版本，见文末「诚实边界」第 6 条。
+# 3.12 / 3.13 上改用 `pip install numpy scipy`（CI 的 unpinned 作业就是这么装的）。
+# 钉版本的缘由与代价，见文末「诚实边界」第 6 条。
 # 可选：先 python -m venv .venv 建个虚拟环境并激活，省得污染系统环境。
 pip install -r requirements.txt
 
-python -m unittest discover -s tests -v        # 44 个测试（32 个原有 + 12 个预算/状态回归）
+python -m unittest discover -s tests -v        # 58 个测试（32 个原有 + 12 个预算/状态回归 + 14 个 README 数字核对）
 python bench/bench_all.py                      # 五组测量 -> results/bench.json
                                                #（顺带重新生成下面第 5 条那张速度表）
 python bench/bench_all.py --check              # 与已提交结果比对
@@ -65,15 +82,9 @@ r = bb.solve(m)             # -> status='optimal', obj=9.0, nodes=5
 r = bb.solve(m, cuts=True)  # 根节点加 Gomory 分数割
 ```
 
-**2026-10-12：有限预算的状态边界。** 单纯形第一阶段耗尽迭代预算时返回
-`iteration_limit`，不会把尚未收敛的人工目标当作不可行证书；自动 Bland
-重启后仍耗尽也一样。B&B 遇到 `iteration_limit` 或历史 `cycling` 状态时
-返回 `lp_limit`，保留已找到的 incumbent，但不宣称全局最优，gap 为未知。
-调用方应检查 `status` 后再使用解；预算未完成不代表模型不可行。
-无界 LP 松弛返回 `lp_unbounded`，不能据此证明整数模型不可行或存在整数无界射线。
-节点预算耗尽及其他没有已证最优解的返回值也没有有限 gap；这些状态不再填写 0。
-这项修复没有改动既有 benchmark / VSP 结果，
-验收见 [budget-status-checks.json](docs/budget-status-checks.json)。
+调用方要先看 `status` 再用解：迭代预算耗尽返回 `iteration_limit` / `lp_limit`，
+无界松弛返回 `lp_unbounded`，都不是不可行证书，gap 记为未知（NaN）而不是 0。
+来龙去脉见 [CHANGELOG.md](CHANGELOG.md) 的 2026-10-12 一条。
 
 ---
 
@@ -229,7 +240,8 @@ MDVSP 是 NP 难的，所以松弛该出分数解、该分支。**然后我去�
 | 两场站 + 车辆成本压到 40 n=8 | 98 | 237.00 | **0** | 1 | 是 |
 
 n=6 的六档同样全是 0。再随机撒 **1500 个**多场站实例（n=4..8，2~3 场站，随机成本），
-**依然 0 个出分数松弛，也 0 个有界间隙**（线性松弛的最优值都等于整数最优值）。
+本仓单纯形返回的松弛顶点**依然 0 个是分数的，也 0 个有界间隙**
+（逐个解了 MIP：线性松弛的最优值都等于整数最优值）。
 
 这 1500 个是**对照组**：`bench/bench_vsp.py --hunt-baseline 1500` 与下面那个
 `--hunt 6000` 跑的是**同一批实例**，逐位相同的时刻表、场站、空驶表、车辆成本，
@@ -244,7 +256,10 @@ n=6 的六档同样全是 0。再随机撒 **1500 个**多场站实例（n=4..8�
 **那到底要什么？** 看模型就知道：上面那个写法里，场站之间只在出场/入场两端有区别，
 中段的空驶弧、等待弧对所有场站完全相同，耦合太弱。真实 MDVSP 还有一条我漏掉的耦合：
 **班次的场站准入限制**（车型、里程、驾驶员归属，让某个班次只能由部分场站承担）。
-补上之后，分数松弛才出现——**6000 个随机实例里 6 个，命中率 0.10%**：
+补上之后，分数松弛才出现——**6000 个随机实例里 6 个的松弛顶点是分数的（0.10%），
+其中 5 个界间隙 > 0**。「顶点分数」是本仓单纯形返回的那个最优顶点的性质
+（模型 + 列序 + 主元规则，见下文「集合的迭代顺序」），界间隙才只属于实例；
+其余 5994 个的松弛顶点本身就是整数解，间隙必为 0。`--hunt 6000` 两组种子都重验：
 
 | 种子 | 班次 | 场站 | 车辆成本 | 分数变量 | 线性松弛 | MIP 最优 | 界间隙 | 节点 |
 |---|---|---|---|---|---|---|---|---|
@@ -262,7 +277,8 @@ n=6 的六档同样全是 0。再随机撒 **1500 个**多场站实例（n=4..8�
   **"松弛解不整数"和"界不紧"是两回事**，这两件事我原先也是混着说的。
 
 所以本仓现在的结论是：**让 MDVSP 变难的不是"多了一个场站"，是"场站服务不了所有班次"；
-即便加上这条，在 n≤8 的规模上也要一千多个实例才碰上一个分数松弛。**
+即便加上这条，在 n≤8 的规模上也要一千多个实例才碰上一个分数松弛顶点
+（6000 个里 6 个，界真正变松的 5 个）。**
 
 这 6 个种子冻结在 `vsp.FRACTIONAL_SEEDS` 里，`random_instance(seed)` 逐位可重建，
 `tests/test_all.py::MultiDepot` 拿它们当回归，并且**把那条被推翻的结论也写成了断言**
@@ -330,7 +346,8 @@ ValueError: Gomory 分数割不适用于该模型：存在连续变量 ['x0', 'x
 | 归约到标准型 | 四件事各有独立测试，外加"自由变量带上界"这个易错组合 |
 | 已提交的 results | `--check` 重跑一遍再逐字段比对，不是只读旧值；**计时字段整块豁免**（机器相关），改由下一行兜住 |
 | 计时表不过期 | README 的速度表由 `bench_all.py` 从 `results/bench.json` 渲染，`--check` 与一条测试各比对一次 |
-| 6/6000 与 1500/0 | CI 每次推送把两次随机搜索**整个重跑**（`--hunt 6000`、`--hunt-baseline 1500`），不是读冻结值 |
+| README 其余数字 | `tests/test_readme_numbers.py` 把其余每张表和英文首屏的数字从 `results/` 现算再比对 |
+| 6/6000、5/6000 与 1500/0 | CI 每次推送把两次随机搜索**整个重跑**（`--hunt 6000`、`--hunt-baseline 1500`），分数顶点与界间隙两组种子都比对，不是读冻结值 |
 | **模型构造可复现** | 换三个 `PYTHONHASHSEED` 起子进程，**弧表与实例字段必须逐位相同** |
 | lpmip/ 不依赖 SciPy | CI 里卸掉 SciPy 再跑一遍，免得"自己实现"悄悄靠在参照求解器上 |
 
@@ -387,7 +404,6 @@ ubuntu 那次正好落在了它上面。所以：
 - [An overview of optimization approaches for scheduling and rostering resources in public transportation (arXiv 2310.13425)](https://arxiv.org/pdf/2310.13425)
 - [Gomory cuts — Cordone lecture notes](https://homes.di.unimi.it/cordone/courses/2014-for/Lez18-gomory.pdf)
 - [Strengthening Chvátal–Gomory cuts and Gomory fractional cuts (Letchford & Lodi, ORL 2002)](https://www.lancaster.ac.uk/staff/letchfoa/articles/2002-Gomory.pdf)
-- [A column generation algorithm for the bus driver scheduling problem](https://ise.ncsu.edu/wp-content/uploads/sites/9/2018/08/column_generation.pdf)
 
 ---
 
@@ -414,6 +430,7 @@ problems/vsp.py        时空网络 VSP / MDVSP，以及那条被推翻的结论
 bench/bench_all.py     五组测量（含割），--check 比对已提交结果并核对 README 的速度表
 bench/bench_vsp.py     车辆调度阶梯 + 6 个冻结反例，--hunt N / --hunt-baseline N 重跑两次搜索
 tests/test_all.py      32 个测试，全部对着 HiGHS 或按定义验
+tests/test_readme_numbers.py  14 个测试：README 每张表、英文首屏每个数字都对 results/ 现算
 ```
 
 ---
@@ -428,10 +445,13 @@ tests/test_all.py      32 个测试，全部对着 HiGHS 或按定义验
 4. **数值稳定性没做认真处理**：容差是固定的 1e-9，没有比例化、没有 Harris 比值检验。
 5. **列生成没实现。** 查资料时读了集合划分 + 列生成的做法，也知道那才是解大规模
    MDVSP 的主流路线，但本仓没写。**读过不等于做过。**
-6. **CI 只覆盖 Python 3.10 与 3.11。** `requirements.txt` 把 numpy 钉在 1.24.3，
-   是为了让 `--check` 比对的那些字段（计数、状态、界值）在 CI 上稳定复现，
-   而那个版本没有 cp312 的 wheel——首次推送时 CI 正是在 3.12 上红的。
-   放宽版本就能上 3.12，但那些字段的稳定复现就没了保证；两者只能选一个。
+6. **钉死的版本是参照环境，不是唯一能复现的环境。** `requirements.txt` 把 numpy 钉在
+   1.24.3、scipy 钉在 1.11.1，这个 numpy 没有 cp312 的 wheel，所以钉版本的安装只支持
+   Python 3.10 / 3.11（首次推送时 CI 正是在 3.12 上红的）。这里原先写的是「放宽版本，
+   `--check` 比对的字段就没了保证，两者只能选一个」，那句话没有证据：本机 Python 3.11.5
+   + numpy 2.4.6 / scipy 1.17.1 下全部测试与两个 `--check` 都过；CI 的 `unpinned` 作业
+   每次推送在 Python 3.12、3.13 + 当时最新的 numpy/scipy 上重跑测试、两个 `--check`
+   和两次随机搜索。哪天新版本让计数或界值漂了，先红的是那个作业。
    **注意这句话不覆盖计时**：秒数从来就不跨机器复现，`--check` 也不比对它。
 7. **计时是全仓唯一一组机器相关的数字。** 第 5 条那张表只在生成它的那台机器上成立
    （表下面写了是哪台）。跨机器成立的是它的序，不是它的秒数。
