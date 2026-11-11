@@ -1,7 +1,7 @@
 # Python 3.10 or 3.11 (numpy 1.24.3 has no cp312 wheel).
 # Pinned so that the fields `bench/bench_all.py --check` and
 # `bench/bench_vsp.py --check` compare reproduce exactly in CI.
-# Keep this file ASCII-only: pip < 23.3 reads it with the locale codec
+# Keep this file ASCII-only: pip < 25.0 reads it with the locale codec
 # (GBK on Chinese Windows) and fails on non-ASCII comments.
 # Why the pin and what it costs: README, "Honest limits" item 6.
 numpy==1.24.3

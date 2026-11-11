@@ -34,7 +34,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: requirements.txt is ASCII-only
-        # pip < 23.3 用本机 locale 读它；GBK 的 Windows 上一个中文注释就让安装失败。
+        # pip < 25.0 用本机 locale 读它；GBK 的 Windows 上一个中文注释就让安装失败。
         run: python -c "open('requirements.txt','rb').read().decode('ascii')"
       - name: Install
         run: pip install -r requirements.txt

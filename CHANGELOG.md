@@ -10,7 +10,7 @@
 - `tests/test_readme_numbers.py`: every table in the README except the speed table
   (which `bench_all.py --check` already renders and compares) and every number in the
   English summary is compared with `results/bench.json` / `results/vsp.json`.
-- `requirements.txt` is ASCII-only, so `pip < 23.3` on a GBK-locale Windows can read it.
+- `requirements.txt` is ASCII-only, so `pip < 25.0` on a GBK-locale Windows can read it.
 - CI also runs on `windows-latest`, and an `unpinned` job runs the tests, both `--check`
   commands and both random searches on Python 3.12 / 3.13 with the latest numpy and scipy.
 - Docstrings no longer point at files that do not exist (`bench/bench_pivot.py`,

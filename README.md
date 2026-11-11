@@ -56,7 +56,8 @@ depends on column order and pivot rule; the bound gap is the property of the ins
 ```bash
 # 需要 Python 3.10 或 3.11。requirements 把 numpy 钉在 1.24.3，而它没有 cp312 的
 # wheel，3.12 上 pip 会转去源码构建并失败——首次推送时 CI 正是在这里红的。
-# 为什么宁可放弃 3.12 也要钉版本，见文末「诚实边界」第 6 条。
+# 3.12 / 3.13 上改用 `pip install numpy scipy`（CI 的 unpinned 作业就是这么装的）。
+# 钉版本的缘由与代价，见文末「诚实边界」第 6 条。
 # 可选：先 python -m venv .venv 建个虚拟环境并激活，省得污染系统环境。
 pip install -r requirements.txt
 
